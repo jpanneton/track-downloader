@@ -1,0 +1,25 @@
+[soundcloud]
+# Website names that will be detected as a download gate
+supported_download_gates = ["hypeddit", "toneden"]
+# Relevant remix tokens (everything else will be removed from the title)
+supported_remix_tokens = ["remix", "bootleg", "flip", "edit"]
+# SoundCloud playlist to download (private or public)
+download_playlist_url = ""
+
+[downloads]
+# Folder where original files will be downloaded
+root_folder = "./Downloads"
+# Folder where final MP3 files will be exported
+mp3_folder = "./Downloads/MP3"
+# Folder where final WAV files will be exported
+wav_folder = "./Downloads/WAV"
+
+[streamrip]
+# Streaming service from which to rip tracks (only "deezer" is supported for now)
+default_source = "deezer"
+# Target media type to download (only "track" is supported for now)
+default_media_type = "track"
+# Download quality (0 = MP3@128, 1 = MP3@320, 2 = FLAC@44.1)
+default_quality = 1
+# Premium Deezer ARL (required)
+deezer_arl = ""
