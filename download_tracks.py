@@ -1,6 +1,6 @@
 import argparse
 
-from api import Config, download_playlist
+from api import Config, download_playlist_cli
 from gui import download_playlist_gui
 
 from tomlkit.api import parse as parse_toml
@@ -19,7 +19,7 @@ def main():
             if args.gui:
                 download_playlist_gui(config, config.soundcloud.download_playlist_url)
             else:
-                download_playlist(config, config.soundcloud.download_playlist_url)
+                download_playlist_cli(config, config.soundcloud.download_playlist_url)
                 
     except FileNotFoundError:
         print("No config file found")

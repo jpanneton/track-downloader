@@ -88,18 +88,44 @@ class Config:
 
 class TrackInfo:
     """ Single track info """
-    artist: str
     title: str
+    artist: str
+    album: str
     year: str
+    number: int
     genre: str
     artwork_url: str
     download_url: str
+    category: str
 
 class PlaylistInfo:
     """ Track info collection """
-    direct_downloads: list[TrackInfo] = []
-    gate_downloads: list[TrackInfo] = []
-    buy_downloads: list[TrackInfo] = []
+    def __init__(self):
+        self.direct_downloads: list[TrackInfo] = []
+        self.gate_downloads: list[TrackInfo] = []
+        self.buy_downloads: list[TrackInfo] = []
+
+    def get_flat_list(self):
+        track_infos = []
+        for track_info in self.gate_downloads:
+            track_infos.append(track_info)
+        for track_info in self.direct_downloads:
+            track_infos.append(track_info)
+        for track_info in self.buy_downloads:
+            track_infos.append(track_info)
+        return track_infos
+
+    @classmethod
+    def from_flat_list(cls, track_infos: list[TrackInfo]):
+        result = cls()
+        for track_info in track_infos:
+            if track_info.category == 'Gate':
+                result.gate_downloads.append(track_info)
+            elif track_info.category == 'Direct':
+                result.direct_downloads.append(track_info)
+            elif track_info.category == 'Buy':
+                result.buy_downloads.append(track_info)
+        return result
 
 #--------------------------------------------------------------------
 # FILE HELPERS
@@ -238,6 +264,8 @@ async def streamrip_search(config: Config, queries):
 
 def extract_playlist_info(config: Config, playlist_url: str):
     """ Extracts the info of tracks in a SoundCloud playlist """
+    print("INFO: Extracting playlist info...")
+
     api = SoundcloudAPI()
     playlist = api.resolve(playlist_url)
 
@@ -247,21 +275,26 @@ def extract_playlist_info(config: Config, playlist_url: str):
     playlist_info = PlaylistInfo()
     for track in playlist.tracks:
         track_info = TrackInfo()
-        track_info.artist = track.artist
         track_info.title = format_track_name(config, track.title)
+        track_info.artist = track.artist
+        track_info.album = ''
         track_info.year = track.display_date.split('-')[0]
+        track_info.number = 1
         track_info.genre = 'Dubstep'
-        track_info.artwork_url = track.artwork_url.replace('large', 'original')
+        track_info.artwork_url = track.artwork_url.replace('large', 't500x500')
 
         # Handle download category
         if track.downloadable:
             track_info.download_url = track.permalink_url # download_url requires client ID
+            track_info.category = 'Direct'
             playlist_info.direct_downloads.append(track_info)
         elif track.purchase_url and is_download_gate(config, track.purchase_url):
             track_info.download_url = track.purchase_url
+            track_info.category = 'Gate'
             playlist_info.gate_downloads.append(track_info)
         else:
             track_info.download_url = ''
+            track_info.category = 'Buy'
             playlist_info.buy_downloads.append(track_info)
 
     return playlist_info
@@ -370,39 +403,56 @@ def download_buy_downloads(config: Config, track_infos: list[TrackInfo]):
     # Execute streamrip
     asyncio.run(streamrip_search(config, queries))
 
-def download_playlist(config: Config, playlist_url: str):
-    # Create or clear folders
-    create_or_clear_directory(config.downloads.root_folder)
-    create_or_clear_directory(config.downloads.mp3_folder)
-    create_or_clear_directory(config.downloads.wav_folder)
-
-    try:
-        # Extract track infos
-        print("INFO: Extracting playlist info...")
-        playlist_info = extract_playlist_info(config, playlist_url)
-
-        # Setup Chrome options
-        chrome_options = ChromeOptions()
-        chrome_options.add_argument('--log-level=3')
-        chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
-        chrome_options.add_experimental_option('prefs', {'download.default_directory' : config.downloads.root_folder})
-
-        # Initialize the WebDriver
-        web_driver = ChromeDriver(options=chrome_options)
-
-        # Process track infos
+def download_all_tracks(config: Config, playlist_info: PlaylistInfo, web_driver):
+    """ Downloads every tracks """
+    if playlist_info.gate_downloads:
         print("INFO: Downloading gate downloads...")
         download_web_downloads(config, playlist_info.gate_downloads, web_driver)
 
+    if playlist_info.direct_downloads:
         print("INFO: Downloading direct downloads...")
         download_web_downloads(config, playlist_info.direct_downloads, web_driver)
 
+    if playlist_info.buy_downloads:
         print("INFO: Downloading buy downloads...")
         download_buy_downloads(config, playlist_info.buy_downloads)
 
-    except Exception as e:
-        print(e)
+def download_playlist(config: Config, playlist_info: PlaylistInfo):
+    """ Downloads a playlist """
+    # Create or clear folders
+    create_or_clear_directory(config.downloads.root_folder)
+    os.makedirs(config.downloads.mp3_folder, exist_ok=True)
+    os.makedirs(config.downloads.wav_folder, exist_ok=True)
 
-    finally:
-        # Close the browser
-        web_driver.quit()
+    # Create web driver only if needed
+    if playlist_info.gate_downloads or playlist_info.direct_downloads:
+        try:
+            # Setup Chrome options
+            chrome_options = ChromeOptions()
+            chrome_options.add_argument('--log-level=3')
+            chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
+            chrome_options.add_experimental_option('prefs', {'download.default_directory' : config.downloads.root_folder})
+
+            # Initialize the WebDriver
+            web_driver = ChromeDriver(options=chrome_options)
+
+            # Process track infos
+            download_all_tracks(config, playlist_info, web_driver)
+
+        except Exception as e:
+            print(e)
+
+        finally:
+            # Close the browser
+            web_driver.quit()
+    else:
+        # Process track infos
+        download_all_tracks(config, playlist_info, None)
+
+def download_playlist_cli(config: Config, playlist_url: str):
+    """ Downloads a playlist (console version) """
+    # Extract track infos
+    playlist_info = extract_playlist_info(config, playlist_url)
+
+    # Download playlist
+    download_playlist(config, playlist_info)
