@@ -6,6 +6,14 @@ supported_remix_tokens = ["remix", "bootleg", "flip", "edit"]
 # SoundCloud playlist to download (private or public)
 download_playlist_url = ""
 
+[spotify]
+# Client ID of the registered Spotify application
+client_id = ""
+# Client secret of the registered Spotify application
+client_secret = ""
+# Redirect URI used by Spotify OAuth
+redirect_url = "https://localhost:8888/callback"
+
 [downloads]
 # Folder where original files will be downloaded
 root_folder = "./Downloads"

@@ -42,7 +42,6 @@ class EntryPopup(ttk.Entry):
         # Close the entry popup
         self.destroy()
 
-
     def select_all(self, *ignore):
         # Select the whole text
         self.selection_range(0, 'end')
@@ -101,11 +100,11 @@ def add_list_entry(tableview: TableView, track_info: TrackInfo):
 def update_playlist_info(tableview: TableView, playlist_info: PlaylistInfo):
     """ Updates playlist info using current table view data """
     playlist_info = PlaylistInfo()
-    entry_index = 0
+    row_index = 0
 
     for track_info in playlist_info.get_flat_list():
-        entry = tableview.get_children()[entry_index]
-        values = tableview.item(entry, 'values')
+        row = tableview.get_children()[row_index]
+        values = tableview.item(row, 'values')
         assert(len(values) == 7)
         assert(values[-1] == track_info.category)
 
@@ -116,7 +115,7 @@ def update_playlist_info(tableview: TableView, playlist_info: PlaylistInfo):
         track_info.number = values[4]
         track_info.genre = values[5]
 
-        entry_index += 1
+        row_index += 1
 
 def download_playlist_gui(config: Config, playlist_url: str):
     """ Downloads a playlist (graphical version) """
@@ -164,10 +163,10 @@ def download_playlist_gui(config: Config, playlist_url: str):
         update_playlist_info(tableview, playlist_info)
 
         # Extract selected track infos
-        flat_info = playlist_info.get_flat_list()
+        track_infos = playlist_info.get_flat_list()
         selected_track_infos = []
-        for entry in tableview.selection():
-            selected_track_infos.append(flat_info[tableview.index(entry)])
+        for row in tableview.selection():
+            selected_track_infos.append(track_infos[tableview.index(row)])
 
         # Download selected tracks
         download_playlist(config, PlaylistInfo.from_flat_list(selected_track_infos))

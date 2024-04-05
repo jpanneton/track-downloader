@@ -25,6 +25,9 @@ from sclib import (
 from selenium.webdriver import Chrome as ChromeDriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 
+from spotipy import Spotify
+from spotipy.oauth2 import SpotifyClientCredentials
+
 from streamrip.config import (
     Config as StreamripConfig,
     set_user_defaults as streamrip_set_user_defaults,
@@ -47,6 +50,12 @@ class SoundcloudConfig:
     download_playlist_url: str
 
 @dataclass(slots=True)
+class SpotifyConfig:
+    client_id: str
+    client_secret: str
+    redirect_url: str
+
+@dataclass(slots=True)
 class DownloadsConfig:
     root_folder: str
     mp3_folder: str
@@ -62,12 +71,14 @@ class StreamripConfig:
 @dataclass(slots=True)
 class Config:
     soundcloud: SoundcloudConfig
+    spotify: SpotifyConfig
     downloads: DownloadsConfig
     streamrip: StreamripConfig
 
     @classmethod
     def from_file(cls, toml_file):
         soundcloud = SoundcloudConfig(**toml_file['soundcloud'])
+        spotify = SpotifyConfig(**toml_file['spotify'])
         downloads = DownloadsConfig(**toml_file['downloads'])
         streamrip = StreamripConfig(**toml_file['streamrip'])
 
@@ -78,6 +89,7 @@ class Config:
 
         return cls(
             soundcloud=soundcloud,
+            spotify=spotify,
             downloads=downloads,
             streamrip=streamrip
         )
@@ -106,6 +118,7 @@ class PlaylistInfo:
         self.buy_downloads: list[TrackInfo] = []
 
     def get_flat_list(self):
+        """ Returns a flat list containing all the concatenated track infos (gate, direct, buy) """
         track_infos = []
         for track_info in self.gate_downloads:
             track_infos.append(track_info)
@@ -117,6 +130,7 @@ class PlaylistInfo:
 
     @classmethod
     def from_flat_list(cls, track_infos: list[TrackInfo]):
+        """ Generates playlist info from concatenated flat list of track infos (gate, direct, buy) """
         result = cls()
         for track_info in track_infos:
             if track_info.category == 'Gate':
@@ -201,6 +215,11 @@ def format_track_name(config: Config, name):
 
     return result
 
+def extract_spotify_playlist_id(playlist_url):
+    playlist_id = playlist_url.split('playlist/')[-1].split('?')[0]
+    # Base-62 identifier of 22 characters
+    return playlist_id if len(playlist_id) == 22 else None
+
 #--------------------------------------------------------------------
 # STREAMRIP
 #--------------------------------------------------------------------
@@ -262,9 +281,9 @@ async def streamrip_search(config: Config, queries):
 # MAIN
 #--------------------------------------------------------------------
 
-def extract_playlist_info(config: Config, playlist_url: str):
+def extract_soundcloud_playlist_info(config: Config, playlist_url: str):
     """ Extracts the info of tracks in a SoundCloud playlist """
-    print("INFO: Extracting playlist info...")
+    print("INFO: Extracting SoundCloud playlist info...")
 
     api = SoundcloudAPI()
     playlist = api.resolve(playlist_url)
@@ -274,6 +293,7 @@ def extract_playlist_info(config: Config, playlist_url: str):
 
     playlist_info = PlaylistInfo()
     for track in playlist.tracks:
+        # Fill track info
         track_info = TrackInfo()
         track_info.title = format_track_name(config, track.title)
         track_info.artist = track.artist
@@ -298,6 +318,60 @@ def extract_playlist_info(config: Config, playlist_url: str):
             playlist_info.buy_downloads.append(track_info)
 
     return playlist_info
+
+def extract_spotify_playlist_info(config: Config, playlist_url: str):
+    """ Extracts the info of tracks in a Spotify playlist """
+    print("INFO: Extracting Spotify playlist info...")
+
+    playlist_id = extract_spotify_playlist_id(playlist_url)
+    if playlist_id == None:
+        print("ERROR: Invalid Spotify playlist")
+        return
+
+    # Server-to-server authentication (only works with public playlists)
+    spotify = Spotify(client_credentials_manager=SpotifyClientCredentials(
+        client_id=config.spotify.client_id,
+        client_secret=config.spotify.client_secret
+    ))
+
+    playlist = spotify.playlist_tracks(playlist_id)['items']
+    playlist_info = PlaylistInfo()
+    for track in playlist:
+        # Get metadata
+        artists = ' & '.join([t['name'] for t in track['track']['artists']])
+
+        # Checks if the track is part of an album (not in a compilation nor a single)
+        is_in_album = (track['track']['album']['album_type'] == 'album' or
+            (track['track']['album']['album_type'] == 'single' and
+             track['track']['track_number'] != 1))
+
+        # Fill track info
+        track_info = TrackInfo()
+        track_info.title = format_track_name(config, track['track']['name'])
+        track_info.artist = artists
+        track_info.album = track['track']['album']['name'] if is_in_album else ''
+        track_info.year = track['track']['album']['release_date'].split('-')[0]
+        track_info.number = track['track']['track_number']
+        track_info.genre = 'Dubstep'
+        track_info.artwork_url = ''
+        track_info.download_url = ''
+        track_info.category = 'Buy'
+
+        # Add to buy downloads
+        playlist_info.buy_downloads.append(track_info)
+
+    return playlist_info
+
+def extract_playlist_info(config: Config, playlist_url: str):
+    """ Extracts the info of tracks in a playlist """
+    website_name = extract_website_name(playlist_url)
+    if website_name == 'soundcloud':
+        return extract_soundcloud_playlist_info(config, playlist_url)
+    elif website_name == 'spotify':
+        return extract_spotify_playlist_info(config, playlist_url)
+    else:
+        print(f"ERROR: Invalid playlist URL")
+        return PlaylistInfo()
 
 def process_mp3(config: Config, track_info: TrackInfo, filename):
     source_path = os.path.join(config.downloads.root_folder, filename)
