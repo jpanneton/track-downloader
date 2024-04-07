@@ -81,14 +81,15 @@ class TableView(ttk.Treeview):
         self.entryPopup = EntryPopup(self, row, int(column[1:]) - 1, text)
         self.entryPopup.place(x=x, y=y, width=width, height=height, anchor='w')
 
-def add_list_entry(tableview: TableView, track_info: TrackInfo):
+def add_list_entry(config: Config, tableview: TableView, track_info: TrackInfo):
     """ Adds a new track to a table view """
     tableview.insert(
         "",
         tk.END,
         values=(
+            track_info.name,
             track_info.title,
-            track_info.artist,
+            config.metadata.artist_delimiter.join(track_info.artists),
             track_info.album,
             track_info.year,
             track_info.number,
@@ -97,7 +98,7 @@ def add_list_entry(tableview: TableView, track_info: TrackInfo):
         )
     )
 
-def update_playlist_info(tableview: TableView, playlist_info: PlaylistInfo):
+def update_playlist_info(config: Config, tableview: TableView, playlist_info: PlaylistInfo):
     """ Updates playlist info using current table view data """
     playlist_info = PlaylistInfo()
     row_index = 0
@@ -109,7 +110,7 @@ def update_playlist_info(tableview: TableView, playlist_info: PlaylistInfo):
         assert(values[-1] == track_info.category)
 
         track_info.title = values[0]
-        track_info.artist = values[1]
+        track_info.artists = values[1].split(config.metadata.artist_delimiter)
         track_info.album = values[2]
         track_info.year = values[3]
         track_info.number = values[4]
@@ -122,17 +123,30 @@ def download_playlist_gui(config: Config, playlist_url: str):
     # Create window
     root = tk.Tk()
     root.title("Track Downloader")
+    root.minsize(640, 480)
 
     # Init columns
-    tableview = TableView(root, columns=("title", "artist", "album", "year", "number", "genre", "category"))
+    tableview = TableView(root, columns=('name', 'title', 'artists', 'album', 'year', 'number', 'genre', 'category'))
+
+    tableview.column('#0', width=0, stretch=tk.NO)
+    tableview.column('name', width=int(tableview.winfo_reqwidth() * 0.25), minwidth=100)
+    tableview.column('title', width=int(tableview.winfo_reqwidth() * 0.2), minwidth=100)
+    tableview.column('artists', width=int(tableview.winfo_reqwidth() * 0.2), minwidth=100)
+    tableview.column('album', width=int(tableview.winfo_reqwidth() * 0.1), minwidth=100)
+    tableview.column('year', width=int(tableview.winfo_reqwidth() * 0.05), minwidth=100, anchor='center', stretch=0)
+    tableview.column('number', width=int(tableview.winfo_reqwidth() * 0.05), minwidth=100, anchor='center', stretch=0)
+    tableview.column('genre', width=int(tableview.winfo_reqwidth() * 0.10), minwidth=100, anchor='center')
+    tableview.column('category', width=int(tableview.winfo_reqwidth() * 0.05), minwidth=100, anchor='center', stretch=0)
+
     tableview['show'] = 'headings'
-    tableview.heading("title", text="Title")
-    tableview.heading("artist", text="Artist")
-    tableview.heading("album", text="Album")
-    tableview.heading("year", text="Year")
-    tableview.heading("number", text="Number")
-    tableview.heading("genre", text="Genre")
-    tableview.heading("category", text="Category")
+    tableview.heading('name', text="Name")
+    tableview.heading('title', text="Title")
+    tableview.heading('artists', text="Artists")
+    tableview.heading('album', text="Album")
+    tableview.heading('year', text="Year")
+    tableview.heading('number', text="Number")
+    tableview.heading('genre', text="Genre")
+    tableview.heading('category', text="Category")
 
     playlist_frame = ttk.Frame(root)
     playlist_label = ttk.Label(playlist_frame, text="Playlist URL")
@@ -154,13 +168,13 @@ def download_playlist_gui(config: Config, playlist_url: str):
 
         # Populate table view
         for track_info in playlist_info.get_flat_list():
-            add_list_entry(tableview, track_info)
+            add_list_entry(config, tableview, track_info)
 
     def on_download_selected():
         nonlocal playlist_info
 
         # Update global playlist info from table view
-        update_playlist_info(tableview, playlist_info)
+        update_playlist_info(config, tableview, playlist_info)
 
         # Extract selected track infos
         track_infos = playlist_info.get_flat_list()
@@ -175,7 +189,7 @@ def download_playlist_gui(config: Config, playlist_url: str):
         nonlocal playlist_info
 
         # Update global playlist info from table view
-        update_playlist_info(tableview, playlist_info)
+        update_playlist_info(config, tableview, playlist_info)
 
         # Download every tracks
         download_playlist(config, playlist_info)

@@ -31,3 +31,9 @@ default_media_type = "track"
 default_quality = 1
 # Premium Deezer ARL (required)
 deezer_arl = ""
+
+[metadata]
+# Delimiter used to separate contributing artists tag
+artist_delimiter = "; "
+# Indicates whether or not to use the title of a single as its album or leave the tag blank
+tag_single_album = false

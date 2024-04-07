@@ -69,11 +69,17 @@ class StreamripConfig:
     deezer_arl: str
 
 @dataclass(slots=True)
+class MetadataConfig:
+    artist_delimiter: str
+    tag_single_album: bool
+
+@dataclass(slots=True)
 class Config:
     soundcloud: SoundcloudConfig
     spotify: SpotifyConfig
     downloads: DownloadsConfig
     streamrip: StreamripConfig
+    metadata: MetadataConfig
 
     @classmethod
     def from_file(cls, toml_file):
@@ -81,6 +87,7 @@ class Config:
         spotify = SpotifyConfig(**toml_file['spotify'])
         downloads = DownloadsConfig(**toml_file['downloads'])
         streamrip = StreamripConfig(**toml_file['streamrip'])
+        metadata = MetadataConfig(**toml_file['metadata'])
 
         # Enforce absolute paths
         downloads.root_folder = os.path.abspath(downloads.root_folder)
@@ -91,7 +98,8 @@ class Config:
             soundcloud=soundcloud,
             spotify=spotify,
             downloads=downloads,
-            streamrip=streamrip
+            streamrip=streamrip,
+            metadata=metadata
         )
 
 #--------------------------------------------------------------------
@@ -100,8 +108,9 @@ class Config:
 
 class TrackInfo:
     """ Single track info """
+    name: str
     title: str
-    artist: str
+    artists: list[str]
     album: str
     year: str
     number: int
@@ -198,6 +207,10 @@ def format_track_name(config: Config, name):
     # Replace square brackets with parentheses
     name = name.translate(str.maketrans('[]','()'))
     result = name
+
+    # Replace "- ABC Remix" with (ABC Remix)
+    result = result.rsplit('-', 1)
+    result = result[0] + f"({result[1].strip()})" if len(result) == 2 else result[0]
 
     # Remove trailing parentheses with useless information (e.g. "Free Download")
     pattern = re.compile(r'\s\((?!.*?\b(?:{}))[^()]*\)'.format('|'.join(map(re.escape, config.soundcloud.supported_remix_tokens))), re.IGNORECASE)
@@ -296,8 +309,9 @@ def extract_soundcloud_playlist_info(config: Config, playlist_url: str):
         # Fill track info
         track_info = TrackInfo()
         track_info.title = format_track_name(config, track.title)
-        track_info.artist = track.artist
-        track_info.album = ''
+        track_info.artists = [track.artist]
+        track_info.name = f"{' & '.join(track_info.artists)} - {track_info.title}"
+        track_info.album = track_info.title if config.metadata.tag_single_album else ''
         track_info.year = track.display_date.split('-')[0]
         track_info.number = 1
         track_info.genre = 'Dubstep'
@@ -337,9 +351,6 @@ def extract_spotify_playlist_info(config: Config, playlist_url: str):
     playlist = spotify.playlist_tracks(playlist_id)['items']
     playlist_info = PlaylistInfo()
     for track in playlist:
-        # Get metadata
-        artists = ' & '.join([t['name'] for t in track['track']['artists']])
-
         # Checks if the track is part of an album (not in a compilation nor a single)
         is_in_album = (track['track']['album']['album_type'] == 'album' or
             (track['track']['album']['album_type'] == 'single' and
@@ -348,8 +359,10 @@ def extract_spotify_playlist_info(config: Config, playlist_url: str):
         # Fill track info
         track_info = TrackInfo()
         track_info.title = format_track_name(config, track['track']['name'])
-        track_info.artist = artists
-        track_info.album = track['track']['album']['name'] if is_in_album else ''
+        track_info.artists = [t['name'] for t in track['track']['artists']]
+        track_info.name = f"{' & '.join(track_info.artists)} - {track_info.title}"
+        track_info.album = (track['track']['album']['name'] if is_in_album else
+            track_info.title if config.metadata.tag_single_album else '')
         track_info.year = track['track']['album']['release_date'].split('-')[0]
         track_info.number = track['track']['track_number']
         track_info.genre = 'Dubstep'
@@ -384,8 +397,8 @@ def process_wav(config: Config, track_info: TrackInfo, filename):
     source_path = os.path.join(config.downloads.root_folder, filename)
 
     # Destination paths with properly formatted file names
-    dest_path_mp3 = os.path.join(config.downloads.mp3_folder, f'{track_info.artist} - {track_info.title}.mp3')
-    dest_path_wav = os.path.join(config.downloads.wav_folder, f'{track_info.artist} - {track_info.title}.wav')
+    dest_path_mp3 = os.path.join(config.downloads.mp3_folder, f'{track_info.name}.mp3')
+    dest_path_wav = os.path.join(config.downloads.wav_folder, f'{track_info.name}.wav')
 
     # Load the WAV file
     audio = AudioSegment.from_wav(source_path)
@@ -393,7 +406,7 @@ def process_wav(config: Config, track_info: TrackInfo, filename):
     # Set metadata for the MP3 file
     metadata = {
         'title': track_info.title,
-        'artist': track_info.artist,
+        'artist': config.metadata.artist_delimiter.join(track_info.artists),
         'album': track_info.title,
         'year': track_info.year,
         'genre': track_info.genre,
@@ -436,10 +449,10 @@ def download_direct_downloads(config: Config, track_infos: list[TrackInfo]):
         Unused for now because direct downloads require a client ID
     """
     for track_info in track_infos:
-        print(f'* {track_info.artist} - {track_info.title}')
+        print(f'* {track_info.name}')
 
         # Download file to downloads folder
-        filename = f'{track_info.artist} - {track_info.title}.wav'
+        filename = f'{track_info.name}.wav'
         dest_path = os.path.join(config.downloads.root_folder, filename)
         download_file(track_info.download_url, dest_path)
 
@@ -449,7 +462,7 @@ def download_direct_downloads(config: Config, track_infos: list[TrackInfo]):
 def download_web_downloads(config: Config, track_infos: list[TrackInfo], web_driver):
     """ Downloads tracks that require user action (direct download, download gate, etc.) """
     for track_info in track_infos:
-        print(f'* {track_info.artist} - {track_info.title}')
+        print(f'* {track_info.name}')
 
         # Open a page with the download gate
         web_driver.get(track_info.download_url)
@@ -472,7 +485,7 @@ def download_buy_downloads(config: Config, track_infos: list[TrackInfo]):
     # Generates queries
     queries = []
     for track_info in track_infos:
-        queries.append(f'{track_info.artist} {track_info.title}')
+        queries.append(f'{track_info.artists[0]} {track_info.title}')
 
     # Execute streamrip
     asyncio.run(streamrip_search(config, queries))
