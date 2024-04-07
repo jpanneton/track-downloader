@@ -1,3 +1,17 @@
+[downloads]
+# Folder where original files will be downloaded
+root_folder = "./Downloads"
+# Folder where final MP3 files will be exported
+mp3_folder = "./Downloads/MP3"
+# Folder where final WAV files will be exported
+wav_folder = "./Downloads/WAV"
+
+[metadata]
+# Delimiter used to separate contributing artists tag
+artist_delimiter = "; "
+# Indicates whether or not to use the title of a single as its album or leave the tag blank
+tag_single_album = false
+
 [soundcloud]
 # Website names that will be detected as a download gate
 supported_download_gates = ["hypeddit", "toneden"]
@@ -14,14 +28,6 @@ client_secret = ""
 # Redirect URI used by Spotify OAuth
 redirect_url = "https://localhost:8888/callback"
 
-[downloads]
-# Folder where original files will be downloaded
-root_folder = "./Downloads"
-# Folder where final MP3 files will be exported
-mp3_folder = "./Downloads/MP3"
-# Folder where final WAV files will be exported
-wav_folder = "./Downloads/WAV"
-
 [streamrip]
 # Streaming service from which to rip tracks (only "deezer" is supported for now)
 default_source = "deezer"
@@ -31,9 +37,3 @@ default_media_type = "track"
 default_quality = 1
 # Premium Deezer ARL (required)
 deezer_arl = ""
-
-[metadata]
-# Delimiter used to separate contributing artists tag
-artist_delimiter = "; "
-# Indicates whether or not to use the title of a single as its album or leave the tag blank
-tag_single_album = false

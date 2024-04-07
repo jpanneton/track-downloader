@@ -44,6 +44,17 @@ console = RichConsole()
 #--------------------------------------------------------------------
 
 @dataclass(slots=True)
+class DownloadsConfig:
+    root_folder: str
+    mp3_folder: str
+    wav_folder: str
+
+@dataclass(slots=True)
+class MetadataConfig:
+    artist_delimiter: str
+    tag_single_album: bool
+
+@dataclass(slots=True)
 class SoundcloudConfig:
     supported_download_gates: list[str]
     supported_remix_tokens: list[str]
@@ -56,12 +67,6 @@ class SpotifyConfig:
     redirect_url: str
 
 @dataclass(slots=True)
-class DownloadsConfig:
-    root_folder: str
-    mp3_folder: str
-    wav_folder: str
-
-@dataclass(slots=True)
 class StreamripConfig:
     default_source: str
     default_media_type: str
@@ -69,25 +74,20 @@ class StreamripConfig:
     deezer_arl: str
 
 @dataclass(slots=True)
-class MetadataConfig:
-    artist_delimiter: str
-    tag_single_album: bool
-
-@dataclass(slots=True)
 class Config:
+    downloads: DownloadsConfig
+    metadata: MetadataConfig
     soundcloud: SoundcloudConfig
     spotify: SpotifyConfig
-    downloads: DownloadsConfig
     streamrip: StreamripConfig
-    metadata: MetadataConfig
 
     @classmethod
     def from_file(cls, toml_file):
+        downloads = DownloadsConfig(**toml_file['downloads'])
+        metadata = MetadataConfig(**toml_file['metadata'])
         soundcloud = SoundcloudConfig(**toml_file['soundcloud'])
         spotify = SpotifyConfig(**toml_file['spotify'])
-        downloads = DownloadsConfig(**toml_file['downloads'])
         streamrip = StreamripConfig(**toml_file['streamrip'])
-        metadata = MetadataConfig(**toml_file['metadata'])
 
         # Enforce absolute paths
         downloads.root_folder = os.path.abspath(downloads.root_folder)
@@ -95,11 +95,11 @@ class Config:
         downloads.wav_folder = os.path.abspath(downloads.wav_folder)
 
         return cls(
+            downloads=downloads,
+            metadata=metadata,
             soundcloud=soundcloud,
             spotify=spotify,
-            downloads=downloads,
-            streamrip=streamrip,
-            metadata=metadata
+            streamrip=streamrip
         )
 
 #--------------------------------------------------------------------
