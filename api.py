@@ -1,6 +1,3 @@
-import asyncio
-import click
-import logging
 import os
 import re
 import requests
@@ -8,14 +5,12 @@ import shutil
 
 from dataclasses import dataclass
 
+from deemix_client import DeemixClient
+
 from eyed3 import load as eyed3_load_mp3
 from eyed3.id3 import ID3_V1_1
 
 from pydub import AudioSegment
-
-from rich.console import Console as RichConsole
-from rich.logging import RichHandler
-from rich.traceback import install as install_rich_traceback
 
 from sclib import (
     SoundcloudAPI,
@@ -28,16 +23,7 @@ from selenium.webdriver.chrome.options import Options as ChromeOptions
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyClientCredentials
 
-from streamrip.config import (
-    Config as StreamripConfig,
-    set_user_defaults as streamrip_set_user_defaults,
-    DEFAULT_CONFIG_PATH as STREAMRIP_DEFAULT_CONFIG_PATH
-)
-from streamrip.rip.main import Main as StreamripMain
-
 from urllib.parse import urlparse
-
-console = RichConsole()
 
 #--------------------------------------------------------------------
 # CONFIG
@@ -46,6 +32,7 @@ console = RichConsole()
 @dataclass(slots=True)
 class DownloadsConfig:
     root_folder: str
+    flac_folder: str
     mp3_folder: str
     wav_folder: str
 
@@ -67,9 +54,7 @@ class SpotifyConfig:
     redirect_url: str
 
 @dataclass(slots=True)
-class StreamripConfig:
-    default_source: str
-    default_media_type: str
+class DeemixConfig:
     default_quality: int
     deezer_arl: str
 
@@ -79,7 +64,7 @@ class Config:
     metadata: MetadataConfig
     soundcloud: SoundcloudConfig
     spotify: SpotifyConfig
-    streamrip: StreamripConfig
+    deemix: DeemixConfig
 
     @classmethod
     def from_file(cls, toml_file):
@@ -87,10 +72,11 @@ class Config:
         metadata = MetadataConfig(**toml_file['metadata'])
         soundcloud = SoundcloudConfig(**toml_file['soundcloud'])
         spotify = SpotifyConfig(**toml_file['spotify'])
-        streamrip = StreamripConfig(**toml_file['streamrip'])
+        deemix = DeemixConfig(**toml_file['deemix'])
 
         # Enforce absolute paths
         downloads.root_folder = os.path.abspath(downloads.root_folder)
+        downloads.flac_folder = os.path.abspath(downloads.flac_folder)
         downloads.mp3_folder = os.path.abspath(downloads.mp3_folder)
         downloads.wav_folder = os.path.abspath(downloads.wav_folder)
 
@@ -99,7 +85,7 @@ class Config:
             metadata=metadata,
             soundcloud=soundcloud,
             spotify=spotify,
-            streamrip=streamrip
+            deemix=deemix
         )
 
 #--------------------------------------------------------------------
@@ -153,18 +139,20 @@ class PlaylistInfo:
 #--------------------------------------------------------------------
 # FILE HELPERS
 #--------------------------------------------------------------------
+    
+def delete_files_in_folder(folder_path):
+    """ Deletes every file in a folder excluding sub-folders """
+    if not os.path.exists(folder_path):
+        return
 
-def create_or_clear_directory(directory):
-    """ Deletes a directory if it already exists and create a new empty one """
-    # If the directory exists, delete it
-    if os.path.exists(directory):
-        shutil.rmtree(directory)
-
-    # Create the directory
-    try:
-        os.makedirs(directory)
-    except Exception as e:
-        print(e)
+    # Iterate over all items in the folder
+    for item in os.listdir(folder_path):
+        item_path = os.path.join(folder_path, item)
+        
+        # Check if the item is a file
+        if os.path.isfile(item_path):
+            # Delete the file
+            os.remove(item_path)
 
 def download_file(url, dest_path):
     """ Downloads a file from a URL """
@@ -234,61 +222,42 @@ def extract_spotify_playlist_id(playlist_url):
     return playlist_id if len(playlist_id) == 22 else None
 
 #--------------------------------------------------------------------
-# STREAMRIP
+# DEEMIX
 #--------------------------------------------------------------------
 
-def streamrip_generate_config(config_path, no_db):
-    """ Loads the user streamrip config file (%AppData%/streamrip/config.toml) """
-    # Setup global logger used by streamrip
-    global logger
-    logging.basicConfig(
-        level="INFO",
-        format="%(message)s",
-        datefmt="[%X]",
-        handlers=[RichHandler()],
+def deemix_download(config: Config, queries):
+    """ Searches for tracks in Spotify using a query and downloads them from Deezer """    
+    # Server-to-server authentication (only works with public playlists)
+    spotify = Spotify(client_credentials_manager=SpotifyClientCredentials(
+        client_id=config.spotify.client_id,
+        client_secret=config.spotify.client_secret
+    ))
+
+    # Search for tracks
+    track_urls = []
+    for query in queries:
+        results = spotify.search(q=query, type='track', limit=1)
+
+        if len(results) > 0:
+            # Use first result (best match)
+            first_result = results['tracks']['items'][0]
+            track_urls.append(first_result['external_urls']['spotify'])
+
+    # Init Deezer client
+    deemix = DeemixClient(
+        config_folder = "./config/deemix",
+        arl=config.deemix.deezer_arl,
+        client_id=config.spotify.client_id,
+        client_secret=config.spotify.client_secret
     )
-    logger = logging.getLogger("streamrip")
 
-    # Install a rich traceback handler
-    install_rich_traceback(console=console, suppress=[click, asyncio], max_frames=1)
-    logger.setLevel(logging.INFO)
-
-    # Make sure config file exists
-    if not os.path.isfile(config_path):
-        console.print(
-            f"No file found at [bold cyan]{config_path}[/bold cyan], creating default config.",
-        )
-        streamrip_set_user_defaults(config_path)
-
-    # Load config file
-    try:
-        config = StreamripConfig(config_path)
-    except Exception as e:
-        console.print(
-            f"Error loading config from [bold cyan]{config_path}[/bold cyan]: {e}\n"
-            "Try running [bold]rip config reset[/bold]",
-        )
-        return None
-
-    # Bypass cached downloads if set
-    if no_db:
-        config.session.database.downloads_enabled = False
-
-    return config
-
-async def streamrip_search(config: Config, queries):
-    """ Searches for tracks interactively using a query """    
-    # Generate streamrip config
-    streamrip_config = streamrip_generate_config(STREAMRIP_DEFAULT_CONFIG_PATH, True)
-    streamrip_config.session.downloads.folder = config.downloads.mp3_folder
-    streamrip_config.session.deezer.quality = config.streamrip.default_quality
-    streamrip_config.session.deezer.arl = config.streamrip.deezer_arl
-
-    async with StreamripMain(streamrip_config) as main:
-        for query in queries:
-            await main.search_interactive(config.streamrip.default_source, config.streamrip.default_media_type, query)
-        await main.resolve()
-        await main.rip()
+    # Download tracks
+    use_flac = config.deemix.default_quality == 2
+    deemix.download(
+        urls=track_urls,
+        path=config.downloads.flac_folder if use_flac else config.downloads.mp3_folder,
+        flac=use_flac
+    )
 
 #--------------------------------------------------------------------
 # MAIN
@@ -487,8 +456,8 @@ def download_buy_downloads(config: Config, track_infos: list[TrackInfo]):
     for track_info in track_infos:
         queries.append(f'{track_info.artists[0]} {track_info.title}')
 
-    # Execute streamrip
-    asyncio.run(streamrip_search(config, queries))
+    # Execute Deemix
+    deemix_download(config, queries)
 
 def download_all_tracks(config: Config, playlist_info: PlaylistInfo, web_driver):
     """ Downloads every tracks """
@@ -506,10 +475,14 @@ def download_all_tracks(config: Config, playlist_info: PlaylistInfo, web_driver)
 
 def download_playlist(config: Config, playlist_info: PlaylistInfo):
     """ Downloads a playlist """
-    # Create or clear folders
-    create_or_clear_directory(config.downloads.root_folder)
+    # Create folders if necessary
+    os.makedirs(config.downloads.root_folder, exist_ok=True)
+    os.makedirs(config.downloads.flac_folder, exist_ok=True)
     os.makedirs(config.downloads.mp3_folder, exist_ok=True)
     os.makedirs(config.downloads.wav_folder, exist_ok=True)
+
+    # Clear root folder in case there are any files
+    delete_files_in_folder(config.downloads.root_folder)
 
     # Create web driver only if needed
     if playlist_info.gate_downloads or playlist_info.direct_downloads:

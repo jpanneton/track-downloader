@@ -133,10 +133,10 @@ def download_playlist_gui(config: Config, playlist_url: str):
     tableview.column('title', width=int(tableview.winfo_reqwidth() * 0.2), minwidth=100)
     tableview.column('artists', width=int(tableview.winfo_reqwidth() * 0.2), minwidth=100)
     tableview.column('album', width=int(tableview.winfo_reqwidth() * 0.1), minwidth=100)
-    tableview.column('year', width=int(tableview.winfo_reqwidth() * 0.05), minwidth=100, anchor='center', stretch=0)
-    tableview.column('number', width=int(tableview.winfo_reqwidth() * 0.05), minwidth=100, anchor='center', stretch=0)
+    tableview.column('year', width=int(tableview.winfo_reqwidth() * 0.05), minwidth=100, anchor='center', stretch=False)
+    tableview.column('number', width=int(tableview.winfo_reqwidth() * 0.05), minwidth=100, anchor='center', stretch=False)
     tableview.column('genre', width=int(tableview.winfo_reqwidth() * 0.10), minwidth=100, anchor='center')
-    tableview.column('category', width=int(tableview.winfo_reqwidth() * 0.05), minwidth=100, anchor='center', stretch=0)
+    tableview.column('category', width=int(tableview.winfo_reqwidth() * 0.05), minwidth=100, anchor='center', stretch=False)
 
     tableview['show'] = 'headings'
     tableview.heading('name', text="Name")

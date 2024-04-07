@@ -12,7 +12,7 @@ def main():
 
     # Load config
     try:
-        with open('config.toml') as toml_file:
+        with open('config/config.toml') as toml_file:
             toml = parse_toml(toml_file.read())
             config = Config.from_file(toml)
 
