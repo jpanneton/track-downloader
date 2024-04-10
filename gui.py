@@ -54,6 +54,16 @@ class TableView(ttk.Treeview):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.bind("<Double-1>", self.on_double_click)
+        self.readonly_columns = []
+
+    def set_readonly_columns(self, columns):
+        # Validate columns
+        for column in columns:
+            if column not in self['columns']:
+                print(f"ERROR: Invalid column '{column}'")
+        
+        # Set columns
+        self.readonly_columns = columns
 
     def on_double_click(self, event):
         # Close previous popup (if any)
@@ -65,9 +75,10 @@ class TableView(ttk.Treeview):
         # Identify cell that was clicked
         row = self.identify_row(event.y)
         column = self.identify_column(event.x)
+        culumn_index = int(column[1:]) - 1
 
         # Don't do anything if an header was clicked
-        if not row:
+        if not row or self['columns'][culumn_index] in self.readonly_columns:
             return
 
         # Get cell rect
@@ -77,8 +88,9 @@ class TableView(ttk.Treeview):
         y += height // 2
 
         # Show entry popup
-        text = self.item(row, 'values')[int(column[1:]) - 1]
-        self.entryPopup = EntryPopup(self, row, int(column[1:]) - 1, text)
+        text = self.item(row, 'values')[culumn_index]
+        justification = 'center' if str(self.column(column, 'anchor')) == tk.CENTER else 'left'
+        self.entryPopup = EntryPopup(self, row, culumn_index, text, justify=justification)
         self.entryPopup.place(x=x, y=y, width=width, height=height, anchor='w')
 
 def add_list_entry(config: Config, tableview: TableView, track_info: TrackInfo):
@@ -128,16 +140,17 @@ def download_playlist_gui(config: Config, playlist_url: str):
 
     # Init columns
     tableview = TableView(root, columns=('name', 'title', 'artists', 'album', 'year', 'number', 'genre', 'category'))
+    tableview.set_readonly_columns(['category'])
 
     tableview.column('#0', width=0, stretch=tk.NO)
     tableview.column('name', width=int(tableview.winfo_reqwidth() * 0.25), minwidth=100)
     tableview.column('title', width=int(tableview.winfo_reqwidth() * 0.2), minwidth=100)
     tableview.column('artists', width=int(tableview.winfo_reqwidth() * 0.2), minwidth=100)
     tableview.column('album', width=int(tableview.winfo_reqwidth() * 0.1), minwidth=100)
-    tableview.column('year', width=int(tableview.winfo_reqwidth() * 0.05), minwidth=100, anchor='center', stretch=False)
-    tableview.column('number', width=int(tableview.winfo_reqwidth() * 0.05), minwidth=100, anchor='center', stretch=False)
-    tableview.column('genre', width=int(tableview.winfo_reqwidth() * 0.10), minwidth=100, anchor='center')
-    tableview.column('category', width=int(tableview.winfo_reqwidth() * 0.05), minwidth=100, anchor='center', stretch=False)
+    tableview.column('year', width=int(tableview.winfo_reqwidth() * 0.05), minwidth=100, anchor=tk.CENTER, stretch=False)
+    tableview.column('number', width=int(tableview.winfo_reqwidth() * 0.05), minwidth=100, anchor=tk.CENTER, stretch=False)
+    tableview.column('genre', width=int(tableview.winfo_reqwidth() * 0.10), minwidth=100, anchor=tk.CENTER)
+    tableview.column('category', width=int(tableview.winfo_reqwidth() * 0.05), minwidth=100, anchor=tk.CENTER, stretch=False)
 
     tableview['show'] = 'headings'
     tableview.heading('name', text="Name")
