@@ -38,13 +38,14 @@ class DownloadsConfig:
 
 @dataclass(slots=True)
 class MetadataConfig:
+    supported_remix_tokens: list[str]
     artist_delimiter: str
     tag_single_album: bool
+    default_genre: str
 
 @dataclass(slots=True)
 class SoundcloudConfig:
     supported_download_gates: list[str]
-    supported_remix_tokens: list[str]
     download_playlist_url: str
 
 @dataclass(slots=True)
@@ -201,7 +202,7 @@ def format_track_name(config: Config, name: str):
     result = result[0] + f"({result[1].strip()})" if len(result) == 2 else result[0]
 
     # Remove trailing parentheses with useless information (e.g. "Free Download")
-    pattern = re.compile(r'\s\((?!.*?\b(?:{}))[^()]*\)'.format('|'.join(map(re.escape, config.soundcloud.supported_remix_tokens))), re.IGNORECASE)
+    pattern = re.compile(r'\s\((?!.*?\b(?:{}))[^()]*\)'.format('|'.join(map(re.escape, config.metadata.supported_remix_tokens))), re.IGNORECASE)
     matches.extend(pattern.findall(result))
     result = re.sub(pattern, '', result).strip()
 
@@ -282,7 +283,7 @@ def extract_soundcloud_playlist_info(config: Config, playlist_url: str):
         track_info.album = track_info.title if config.metadata.tag_single_album else ''
         track_info.year = track.display_date.split('-')[0]
         track_info.number = 1
-        track_info.genre = 'Dubstep'
+        track_info.genre = config.metadata.default_genre
         track_info.artwork_url = track.artwork_url.replace('large', 't500x500')
 
         # Handle download category
@@ -325,7 +326,7 @@ def extract_spotify_playlist_info(config: Config, playlist_url: str):
              track['track']['track_number'] != 1))
 
         # Check if the track is a remix
-        is_remix = any(track['track']['name'].lower().endswith(token) for token in config.soundcloud.supported_remix_tokens)
+        is_remix = any(track['track']['name'].lower().endswith(token) for token in config.metadata.supported_remix_tokens)
 
         # Get album artists
         album_artists = [t['name'] for t in track['track']['album']['artists']]
@@ -341,7 +342,7 @@ def extract_spotify_playlist_info(config: Config, playlist_url: str):
             track_info.title if config.metadata.tag_single_album else '')
         track_info.year = track['track']['album']['release_date'].split('-')[0]
         track_info.number = track['track']['track_number']
-        track_info.genre = 'Dubstep'
+        track_info.genre = config.metadata.default_genre
         track_info.artwork_url = ''
         track_info.download_url = ''
         track_info.category = 'Buy'
