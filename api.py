@@ -7,8 +7,9 @@ from dataclasses import dataclass
 
 from deemix_client import DeemixClient
 
-from eyed3 import load as eyed3_load_mp3
-from eyed3.id3 import ID3_V2_3, ID3_V1_1
+from mutagen.easyid3 import EasyID3
+from mutagen.flac import FLAC as MutagenFLAC
+from mutagen.mp3 import MP3 as MutagenMP3
 
 from pydub import AudioSegment
 
@@ -56,7 +57,7 @@ class SpotifyConfig:
 
 @dataclass(slots=True)
 class DeemixConfig:
-    default_quality: int
+    flac_format: bool
     deezer_arl: str
 
 @dataclass(slots=True)
@@ -256,7 +257,7 @@ def deemix_download(config: Config, queries):
     deemix.download(
         urls=track_urls,
         path=config.downloads.root_folder,
-        flac=config.deemix.default_quality == 2
+        flac=config.deemix.flac_format
     )
 
 #--------------------------------------------------------------------
@@ -364,8 +365,30 @@ def extract_playlist_info(config: Config, playlist_url: str):
         return PlaylistInfo()
 
 def process_flac(config: Config, track_info: TrackInfo, filename):
+    # Source path as downloaded in the downloads folder
     source_path = os.path.join(config.downloads.root_folder, filename)
-    destination_path = os.path.join(config.downloads.mp3_folder, filename)
+
+    # Destination path with properly formatted file name
+    destination_path = os.path.join(config.downloads.flac_folder, f'{track_info.name}.flac')
+
+    # Update tags
+    audiofile = MutagenFLAC(source_path)
+    audiofile['title'] = track_info.title
+    audiofile['artist'] = config.metadata.artist_delimiter.join(track_info.artists)
+    audiofile['album'] = track_info.album
+    audiofile['year'] = track_info.year
+    audiofile['genre'] = track_info.genre
+    audiofile['tracknumber'] = track_info.number
+    audiofile['albumartist'] = ''
+    audiofile.save()
+
+    # Check if the file has expected quality
+    bitrate = audiofile.info.bitrate // 1000
+    assert(config.deemix.flac_format)
+    if bitrate <= 320:
+        print(f"WARNING: {filename} has a bitrate of {bitrate} kbps (expected > 320)")
+
+    # Move FLAC from downloads folder
     shutil.move(source_path, destination_path)
 
 def process_mp3(config: Config, track_info: TrackInfo, filename):
@@ -376,15 +399,20 @@ def process_mp3(config: Config, track_info: TrackInfo, filename):
     destination_path = os.path.join(config.downloads.mp3_folder, f'{track_info.name}.mp3')
 
     # Update tags
-    audiofile = eyed3_load_mp3(source_path)
-    audiofile.tag.title = track_info.title
-    audiofile.tag.artist = config.metadata.artist_delimiter.join(track_info.artists)
-    audiofile.tag.album = track_info.album
-    audiofile.tag.release_date = track_info.year
-    audiofile.tag.genre = track_info.genre
-    audiofile.tag.track_num = track_info.number
-    audiofile.tag.save(version=ID3_V2_3)
-    audiofile.tag.save(version=ID3_V1_1)
+    audiofile = MutagenMP3(source_path, ID3=EasyID3)
+    audiofile['title'] = track_info.title
+    audiofile['artist'] = config.metadata.artist_delimiter.join(track_info.artists)
+    audiofile['album'] = track_info.album
+    audiofile['date'] = track_info.year
+    audiofile['genre'] = track_info.genre
+    audiofile['tracknumber'] = track_info.number
+    audiofile.save(v1=1, v2_version=3)
+
+    # Check if the file has expected quality
+    bitrate = audiofile.info.bitrate // 1000
+    assert(not config.deemix.flac_format)
+    if bitrate != 320:
+        print(f"WARNING: {filename} has a bitrate of {bitrate} kbps (expected 320)")
 
     # Move MP3 from downloads folder
     shutil.move(source_path, destination_path)
@@ -419,9 +447,9 @@ def process_wav(config: Config, track_info: TrackInfo, filename):
     audio.export(dest_path_mp3, format="mp3", bitrate="320k", id3v2_version="3", tags=metadata, cover=artwork_path)
 
     # Set ID3v1 tags
-    audiofile = eyed3_load_mp3(dest_path_mp3)
-    audiofile.tag.release_date = track_info.year
-    audiofile.tag.save(version=ID3_V1_1)
+    audiofile = EasyID3(source_path)
+    audiofile['date'] = track_info.year
+    audiofile.save(v1=1, v2_version=3)
 
     # Delete temporary artwork file
     if os.path.exists(artwork_path):
