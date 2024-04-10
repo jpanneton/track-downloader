@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from deemix_client import DeemixClient
 
 from eyed3 import load as eyed3_load_mp3
-from eyed3.id3 import ID3_V1_1
+from eyed3.id3 import ID3_V2_3, ID3_V1_1
 
 from pydub import AudioSegment
 
@@ -171,7 +171,7 @@ def is_file_downloaded(config: Config, filename):
 # STRING HELPERS
 #--------------------------------------------------------------------
 
-def extract_website_name(url):
+def extract_website_name(url: str):
     """ Extracts the name of the website from a URL """
     parsed_url = urlparse(url)
     domain_parts = parsed_url.netloc.split('.')
@@ -180,11 +180,11 @@ def extract_website_name(url):
     else:
         return None
 
-def is_download_gate(config: Config, url):
+def is_download_gate(config: Config, url: str):
     """ Checks if the URL points to a download gate """
     return extract_website_name(url) in config.soundcloud.supported_download_gates
 
-def format_track_name(config: Config, name):
+def format_track_name(config: Config, name: str):
     """ Formats the name of a track by performing the following:
         1. Replaces any square brackets with parentheses
         2. Removes trailing parentheses with useless information (e.g. "Free Download")
@@ -252,11 +252,10 @@ def deemix_download(config: Config, queries):
     )
 
     # Download tracks
-    use_flac = config.deemix.default_quality == 2
     deemix.download(
         urls=track_urls,
-        path=config.downloads.flac_folder if use_flac else config.downloads.mp3_folder,
-        flac=use_flac
+        path=config.downloads.root_folder,
+        flac=config.deemix.default_quality == 2
     )
 
 #--------------------------------------------------------------------
@@ -320,16 +319,24 @@ def extract_spotify_playlist_info(config: Config, playlist_url: str):
     playlist = spotify.playlist_tracks(playlist_id)['items']
     playlist_info = PlaylistInfo()
     for track in playlist:
-        # Checks if the track is part of an album (not in a compilation nor a single)
+        # Check if the track is part of an album (not in a compilation nor a single)
         is_in_album = (track['track']['album']['album_type'] == 'album' or
             (track['track']['album']['album_type'] == 'single' and
              track['track']['track_number'] != 1))
+
+        # Check if the track is a remix
+        is_remix = any(track['track']['name'].lower().endswith(token) for token in config.soundcloud.supported_remix_tokens)
+
+        # Get album artists
+        album_artists = [t['name'] for t in track['track']['album']['artists']]
+        if len(album_artists) > 1 and is_remix:
+            album_artists.pop() # Remove last artist (usually the remix artist)
 
         # Fill track info
         track_info = TrackInfo()
         track_info.title = format_track_name(config, track['track']['name'])
         track_info.artists = [t['name'] for t in track['track']['artists']]
-        track_info.name = f"{' & '.join(track_info.artists)} - {track_info.title}"
+        track_info.name = f"{' & '.join(album_artists)} - {track_info.title}"
         track_info.album = (track['track']['album']['name'] if is_in_album else
             track_info.title if config.metadata.tag_single_album else '')
         track_info.year = track['track']['album']['release_date'].split('-')[0]
@@ -355,9 +362,30 @@ def extract_playlist_info(config: Config, playlist_url: str):
         print(f"ERROR: Invalid playlist URL")
         return PlaylistInfo()
 
-def process_mp3(config: Config, track_info: TrackInfo, filename):
+def process_flac(config: Config, track_info: TrackInfo, filename):
     source_path = os.path.join(config.downloads.root_folder, filename)
     destination_path = os.path.join(config.downloads.mp3_folder, filename)
+    shutil.move(source_path, destination_path)
+
+def process_mp3(config: Config, track_info: TrackInfo, filename):
+    # Source path as downloaded in the downloads folder
+    source_path = os.path.join(config.downloads.root_folder, filename)
+
+    # Destination path with properly formatted file name
+    destination_path = os.path.join(config.downloads.mp3_folder, f'{track_info.name}.mp3')
+
+    # Update tags
+    audiofile = eyed3_load_mp3(source_path)
+    audiofile.tag.title = track_info.title
+    audiofile.tag.artist = config.metadata.artist_delimiter.join(track_info.artists)
+    audiofile.tag.album = track_info.album
+    audiofile.tag.release_date = track_info.year
+    audiofile.tag.genre = track_info.genre
+    audiofile.tag.track_num = track_info.number
+    audiofile.tag.save(version=ID3_V2_3)
+    audiofile.tag.save(version=ID3_V1_1)
+
+    # Move MP3 from downloads folder
     shutil.move(source_path, destination_path)
 
 def process_wav(config: Config, track_info: TrackInfo, filename):
@@ -376,10 +404,10 @@ def process_wav(config: Config, track_info: TrackInfo, filename):
     metadata = {
         'title': track_info.title,
         'artist': config.metadata.artist_delimiter.join(track_info.artists),
-        'album': track_info.title,
+        'album': track_info.album,
         'year': track_info.year,
         'genre': track_info.genre,
-        'track': 1
+        'track': track_info.number
     }
 
     # Download the artwork from the URL and save it to a temporary file
@@ -406,7 +434,9 @@ def process_file(config: Config, track_info: TrackInfo, filename):
     # Make sure the file exists in the downloads folder
     if is_file_downloaded(config, filename):
         # Dispatch the processing to the corrresponding procedure
-        if filename.endswith('.mp3'):
+        if filename.endswith('.flac'):
+            process_flac(config, track_info, filename)
+        elif filename.endswith('.mp3'):
             process_mp3(config, track_info, filename)
         elif filename.endswith('.wav'):
             process_wav(config, track_info, filename)
@@ -440,10 +470,10 @@ def download_web_downloads(config: Config, track_infos: list[TrackInfo], web_dri
         input("Download track then press Enter to continue...")
 
         # Process the file
-        files = [f for f in os.listdir(config.downloads.root_folder) if is_file_downloaded(config, f)]
-        if len(files) == 1:
-            process_file(config, track_info, files[0])
-        elif len(files) == 0:
+        filenames = [f for f in os.listdir(config.downloads.root_folder) if is_file_downloaded(config, f)]
+        if len(filenames) == 1:
+            process_file(config, track_info, filenames[0])
+        elif len(filenames) == 0:
             print("SKIPPED: Track hasn't been downloaded by the user")
         else:
             print("ERROR: Found more than one file in downloads folder")
@@ -458,6 +488,24 @@ def download_buy_downloads(config: Config, track_infos: list[TrackInfo]):
 
     # Execute Deemix
     deemix_download(config, queries)
+
+    filenames = [f for f in os.listdir(config.downloads.root_folder) if is_file_downloaded(config, f)]
+    if len(filenames) == len(track_infos):
+        # Create a list of tuples containing filename and creation time
+        filenames = [(f, os.path.getctime(os.path.join(config.downloads.root_folder, f))) for f in filenames]
+
+        # Sort the list of tuples based on creation time (same order as track_infos)
+        filenames = sorted(filenames, key=lambda x: x[1])
+
+        # Extract filenames back from the sorted list of tuples
+        filenames = [filename for filename, _ in filenames]
+
+        # Process the files
+        for i, filename in enumerate(filenames):
+            process_file(config, track_infos[i], filename)
+    else:
+        print("ERROR: File count mismatch in downloads folder")
+        return
 
 def download_all_tracks(config: Config, playlist_info: PlaylistInfo, web_driver):
     """ Downloads every tracks """

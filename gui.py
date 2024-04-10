@@ -100,21 +100,21 @@ def add_list_entry(config: Config, tableview: TableView, track_info: TrackInfo):
 
 def update_playlist_info(config: Config, tableview: TableView, playlist_info: PlaylistInfo):
     """ Updates playlist info using current table view data """
-    playlist_info = PlaylistInfo()
     row_index = 0
 
     for track_info in playlist_info.get_flat_list():
         row = tableview.get_children()[row_index]
         values = tableview.item(row, 'values')
-        assert(len(values) == 7)
+        assert(len(values) == 8)
         assert(values[-1] == track_info.category)
 
-        track_info.title = values[0]
-        track_info.artists = values[1].split(config.metadata.artist_delimiter)
-        track_info.album = values[2]
-        track_info.year = values[3]
-        track_info.number = values[4]
-        track_info.genre = values[5]
+        track_info.name = values[0]
+        track_info.title = values[1]
+        track_info.artists = values[2].split(config.metadata.artist_delimiter)
+        track_info.album = values[3]
+        track_info.year = values[4]
+        track_info.number = values[5]
+        track_info.genre = values[6]
 
         row_index += 1
 
