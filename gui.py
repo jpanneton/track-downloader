@@ -124,6 +124,7 @@ def download_playlist_gui(config: Config, playlist_url: str):
     root = tk.Tk()
     root.title("Track Downloader")
     root.minsize(640, 480)
+    root.iconbitmap("icon.ico")
 
     # Init columns
     tableview = TableView(root, columns=('name', 'title', 'artists', 'album', 'year', 'number', 'genre', 'category'))
