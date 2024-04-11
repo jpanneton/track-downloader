@@ -221,11 +221,12 @@ def download_playlist_gui(config: Config, playlist_url: str):
 
     # Layout UI
     playlist_label.pack(side=tk.LEFT)
-    playlist_entry.pack(side=tk.LEFT)
+    playlist_entry.pack(side=tk.LEFT, padx=10)
+    playlist_entry.configure(width=70)
     playlist_button.pack(side=tk.LEFT)
     playlist_frame.pack(padx=10, pady=10)
 
-    tableview.pack(expand=True, fill='both', padx=10)
+    tableview.pack(expand=True, fill=tk.BOTH, padx=10)
 
     download_selected_button.pack(side=tk.LEFT, padx=10)
     download_all_button.pack(side=tk.LEFT, padx=10)
