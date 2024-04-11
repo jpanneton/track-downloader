@@ -100,6 +100,7 @@ class TrackInfo:
     title: str
     artists: list[str]
     album: str
+    album_artists: list[str]
     year: str
     number: int
     genre: str
@@ -282,6 +283,7 @@ def extract_soundcloud_playlist_info(config: Config, playlist_url: str):
         track_info.artists = [track.artist]
         track_info.name = f"{' & '.join(track_info.artists)} - {track_info.title}"
         track_info.album = track_info.title if config.metadata.tag_single_album else ''
+        track_info.album_artists = []
         track_info.year = track.display_date.split('-')[0]
         track_info.number = 1
         track_info.genre = config.metadata.default_genre
@@ -341,6 +343,7 @@ def extract_spotify_playlist_info(config: Config, playlist_url: str):
         track_info.name = f"{' & '.join(album_artists)} - {track_info.title}"
         track_info.album = (track['track']['album']['name'] if is_in_album else
             track_info.title if config.metadata.tag_single_album else '')
+        track_info.album_artists = album_artists if track_info.album else []
         track_info.year = track['track']['album']['release_date'].split('-')[0]
         track_info.number = track['track']['track_number']
         track_info.genre = config.metadata.default_genre
@@ -376,10 +379,10 @@ def process_flac(config: Config, track_info: TrackInfo, filename):
     audiofile['title'] = track_info.title
     audiofile['artist'] = config.metadata.artist_delimiter.join(track_info.artists)
     audiofile['album'] = track_info.album
+    audiofile['albumartist'] = config.metadata.artist_delimiter.join(track_info.album_artists)
     audiofile['year'] = track_info.year
     audiofile['genre'] = track_info.genre
     audiofile['tracknumber'] = str(track_info.number)
-    audiofile['albumartist'] = ''
     audiofile.save()
 
     # Check if the file has expected quality
@@ -403,6 +406,7 @@ def process_mp3(config: Config, track_info: TrackInfo, filename):
     audiofile['title'] = track_info.title
     audiofile['artist'] = config.metadata.artist_delimiter.join(track_info.artists)
     audiofile['album'] = track_info.album
+    audiofile['albumartist'] = config.metadata.artist_delimiter.join(track_info.album_artists)
     audiofile['date'] = track_info.year
     audiofile['genre'] = track_info.genre
     audiofile['tracknumber'] = str(track_info.number)
@@ -434,7 +438,8 @@ def process_wav(config: Config, track_info: TrackInfo, filename):
         'title': track_info.title,
         'artist': config.metadata.artist_delimiter.join(track_info.artists),
         'album': track_info.album,
-        'year': track_info.year,
+        'albumartist': config.metadata.artist_delimiter.join(track_info.album_artists),
+        'date': track_info.year,
         'genre': track_info.genre,
         'track': track_info.number
     }

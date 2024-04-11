@@ -103,6 +103,7 @@ def add_list_entry(config: Config, tableview: TableView, track_info: TrackInfo):
             track_info.title,
             config.metadata.artist_delimiter.join(track_info.artists),
             track_info.album,
+            config.metadata.artist_delimiter.join(track_info.album_artists),
             track_info.year,
             track_info.number,
             track_info.genre,
@@ -117,16 +118,17 @@ def update_playlist_info(config: Config, tableview: TableView, playlist_info: Pl
     for track_info in playlist_info.get_flat_list():
         row = tableview.get_children()[row_index]
         values = tableview.item(row, 'values')
-        assert(len(values) == 8)
+        assert(len(values) == 9)
         assert(values[-1] == track_info.category)
 
         track_info.name = values[0]
         track_info.title = values[1]
         track_info.artists = values[2].split(config.metadata.artist_delimiter)
         track_info.album = values[3]
-        track_info.year = values[4]
-        track_info.number = values[5]
-        track_info.genre = values[6]
+        track_info.albumartists = values[4].split(config.metadata.artist_delimiter)
+        track_info.year = values[5]
+        track_info.number = values[6]
+        track_info.genre = values[7]
 
         row_index += 1
 
@@ -139,14 +141,15 @@ def download_playlist_gui(config: Config, playlist_url: str):
     root.iconbitmap("icon.ico")
 
     # Init columns
-    tableview = TableView(root, columns=('name', 'title', 'artists', 'album', 'year', 'number', 'genre', 'category'))
+    tableview = TableView(root, columns=('name', 'title', 'artists', 'album', 'albumartists', 'year', 'number', 'genre', 'category'))
     tableview.set_readonly_columns(['category'])
 
     tableview.column('#0', width=0, stretch=tk.NO)
     tableview.column('name', width=int(tableview.winfo_reqwidth() * 0.25), minwidth=100)
-    tableview.column('title', width=int(tableview.winfo_reqwidth() * 0.2), minwidth=100)
-    tableview.column('artists', width=int(tableview.winfo_reqwidth() * 0.2), minwidth=100)
+    tableview.column('title', width=int(tableview.winfo_reqwidth() * 0.15), minwidth=100)
+    tableview.column('artists', width=int(tableview.winfo_reqwidth() * 0.15), minwidth=100)
     tableview.column('album', width=int(tableview.winfo_reqwidth() * 0.1), minwidth=100)
+    tableview.column('albumartists', width=int(tableview.winfo_reqwidth() * 0.1), minwidth=100)
     tableview.column('year', width=int(tableview.winfo_reqwidth() * 0.05), minwidth=100, anchor=tk.CENTER, stretch=False)
     tableview.column('number', width=int(tableview.winfo_reqwidth() * 0.05), minwidth=100, anchor=tk.CENTER, stretch=False)
     tableview.column('genre', width=int(tableview.winfo_reqwidth() * 0.10), minwidth=100, anchor=tk.CENTER)
@@ -157,6 +160,7 @@ def download_playlist_gui(config: Config, playlist_url: str):
     tableview.heading('title', text="Title")
     tableview.heading('artists', text="Artists")
     tableview.heading('album', text="Album")
+    tableview.heading('albumartists', text="Album Artists")
     tableview.heading('year', text="Year")
     tableview.heading('number', text="Number")
     tableview.heading('genre', text="Genre")
