@@ -378,7 +378,7 @@ def process_flac(config: Config, track_info: TrackInfo, filename):
     audiofile['album'] = track_info.album
     audiofile['year'] = track_info.year
     audiofile['genre'] = track_info.genre
-    audiofile['tracknumber'] = track_info.number
+    audiofile['tracknumber'] = str(track_info.number)
     audiofile['albumartist'] = ''
     audiofile.save()
 
@@ -405,7 +405,7 @@ def process_mp3(config: Config, track_info: TrackInfo, filename):
     audiofile['album'] = track_info.album
     audiofile['date'] = track_info.year
     audiofile['genre'] = track_info.genre
-    audiofile['tracknumber'] = track_info.number
+    audiofile['tracknumber'] = str(track_info.number)
     audiofile.save(v1=1, v2_version=3)
 
     # Check if the file has expected quality
