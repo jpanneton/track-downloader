@@ -41,6 +41,7 @@ class DownloadsConfig:
 class MetadataConfig:
     supported_remix_tokens: list[str]
     artist_delimiter: str
+    remove_feat_from_title: bool
     tag_single_album: bool
     default_genre: str
 
@@ -187,11 +188,11 @@ def is_download_gate(config: Config, url: str):
     """ Checks if the URL points to a download gate """
     return extract_website_name(url) in config.soundcloud.supported_download_gates
 
-def format_track_name(config: Config, name: str):
+def format_track_name(config: Config, name: str, remove_noise: bool):
     """ Formats the name of a track by performing the following:
         1. Replaces any square brackets with parentheses
-        2. Removes trailing parentheses with useless information (e.g. "Free Download")
-        3. Removes featuring artists
+        2. Removes trailing parentheses with useless information (e.g. "Free Download") if remove_noise = True
+        3. Removes featuring artists if set in config
     """
     matches = []
 
@@ -199,19 +200,21 @@ def format_track_name(config: Config, name: str):
     name = name.translate(str.maketrans('[]','()'))
     result = name
 
-    # Replace "- ABC Remix" with (ABC Remix)
+    # Replace "- ABC Remix" with (ABC Remix) -> Spotify specific
     result = result.rsplit('-', 1)
     result = result[0] + f"({result[1].strip()})" if len(result) == 2 else result[0]
 
     # Remove trailing parentheses with useless information (e.g. "Free Download")
-    pattern = re.compile(r'\s\((?!.*?\b(?:{}))[^()]*\)'.format('|'.join(map(re.escape, config.metadata.supported_remix_tokens))), re.IGNORECASE)
-    matches.extend(pattern.findall(result))
-    result = re.sub(pattern, '', result).strip()
+    if remove_noise:
+        pattern = re.compile(r'\s\((?!.*?\b(?:{}))[^()]*\)'.format('|'.join(map(re.escape, config.metadata.supported_remix_tokens))), re.IGNORECASE)
+        matches.extend(pattern.findall(result))
+        result = re.sub(pattern, '', result).strip()
 
     # Remove featuring artists
-    pattern = re.compile(r'\s(?:ft\.|feat\.)\s.*?(?=\s\(|$)', re.IGNORECASE)
-    matches.extend(pattern.findall(result))
-    result = re.sub(pattern, '', result).strip()
+    if config.metadata.remove_feat_from_title:
+        pattern = re.compile(r'\s*\((?:feat|ft)\..*?\)', re.IGNORECASE)
+        matches.extend(pattern.findall(result))
+        result = re.sub(pattern, '', result).strip()
 
     # Print changes
     if matches:
@@ -279,7 +282,7 @@ def extract_soundcloud_playlist_info(config: Config, playlist_url: str):
     for track in playlist.tracks:
         # Fill track info
         track_info = TrackInfo()
-        track_info.title = format_track_name(config, track.title)
+        track_info.title = format_track_name(config, track.title, True)
         track_info.artists = [track.artist]
         track_info.name = f"{' & '.join(track_info.artists)} - {track_info.title}"
         track_info.album = track_info.title if config.metadata.tag_single_album else ''
@@ -338,7 +341,7 @@ def extract_spotify_playlist_info(config: Config, playlist_url: str):
 
         # Fill track info
         track_info = TrackInfo()
-        track_info.title = format_track_name(config, track['track']['name'])
+        track_info.title = format_track_name(config, track['track']['name'], False)
         track_info.artists = [t['name'] for t in track['track']['artists']]
         track_info.name = f"{' & '.join(album_artists)} - {track_info.title}"
         track_info.album = (track['track']['album']['name'] if is_in_album else
