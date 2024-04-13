@@ -35,8 +35,8 @@ client_secret = ""
 redirect_url = "https://localhost:8888/callback"
 
 [deemix]
-# Download quality (0 = MP3@128, 1 = MP3@320, 2 = FLAC@44.1)
-default_quality = 1
+# Download format (false = MP3@320, true = FLAC@44.1)
+flac_format = false
 # Premium Deezer ARL (required)
 # See https://rentry.org/firehawk52#deezer-arls
 deezer_arl = ""
