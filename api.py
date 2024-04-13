@@ -4,6 +4,7 @@ import requests
 import shutil
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from deemix_client import DeemixClient
 
@@ -77,11 +78,14 @@ class Config:
         spotify = SpotifyConfig(**toml_file['spotify'])
         deemix = DeemixConfig(**toml_file['deemix'])
 
+        # Get today's date
+        current_date = datetime.now().strftime('%Y-%m-%d')
+
         # Enforce absolute paths
         downloads.root_folder = os.path.abspath(downloads.root_folder)
-        downloads.flac_folder = os.path.abspath(downloads.flac_folder)
-        downloads.mp3_folder = os.path.abspath(downloads.mp3_folder)
-        downloads.wav_folder = os.path.abspath(downloads.wav_folder)
+        downloads.flac_folder = os.path.join(downloads.root_folder, current_date, downloads.flac_folder)
+        downloads.mp3_folder = os.path.join(downloads.root_folder, current_date, downloads.mp3_folder)
+        downloads.wav_folder = os.path.join(downloads.root_folder, current_date, downloads.wav_folder)
 
         return cls(
             downloads=downloads,
@@ -223,6 +227,7 @@ def format_track_name(config: Config, name: str, remove_noise: bool):
     return result
 
 def extract_spotify_playlist_id(playlist_url):
+    """ Extracts the ID from a Spotify playlist URL """
     playlist_id = playlist_url.split('playlist/')[-1].split('?')[0]
     # Base-62 identifier of 22 characters
     return playlist_id if len(playlist_id) == 22 else None
@@ -371,6 +376,10 @@ def extract_playlist_info(config: Config, playlist_url: str):
         return PlaylistInfo()
 
 def process_flac(config: Config, track_info: TrackInfo, filename):
+    """ Generates a properly tagged FLAC """
+    # Make sure the destination FLAC folder exists
+    os.makedirs(config.downloads.flac_folder, exist_ok=True)
+
     # Source path as downloaded in the downloads folder
     source_path = os.path.join(config.downloads.root_folder, filename)
 
@@ -398,6 +407,10 @@ def process_flac(config: Config, track_info: TrackInfo, filename):
     shutil.move(source_path, destination_path)
 
 def process_mp3(config: Config, track_info: TrackInfo, filename):
+    """ Generates a properly tagged MP3 """
+    # Make sure the destination MP3 folder exists
+    os.makedirs(config.downloads.mp3_folder, exist_ok=True)
+
     # Source path as downloaded in the downloads folder
     source_path = os.path.join(config.downloads.root_folder, filename)
 
@@ -426,6 +439,10 @@ def process_mp3(config: Config, track_info: TrackInfo, filename):
 
 def process_wav(config: Config, track_info: TrackInfo, filename):
     """ Converts a WAV to a properly tagged MP3 """
+    # Make sure the destination MP3 and WAV folders exist
+    os.makedirs(config.downloads.mp3_folder, exist_ok=True)
+    os.makedirs(config.downloads.wav_folder, exist_ok=True)
+
     # Source path as downloaded in the downloads folder
     source_path = os.path.join(config.downloads.root_folder, filename)
 
@@ -560,11 +577,8 @@ def download_all_tracks(config: Config, playlist_info: PlaylistInfo, web_driver)
 
 def download_playlist(config: Config, playlist_info: PlaylistInfo):
     """ Downloads a playlist """
-    # Create folders if necessary
+    # Create root download folder if necessary
     os.makedirs(config.downloads.root_folder, exist_ok=True)
-    os.makedirs(config.downloads.flac_folder, exist_ok=True)
-    os.makedirs(config.downloads.mp3_folder, exist_ok=True)
-    os.makedirs(config.downloads.wav_folder, exist_ok=True)
 
     # Clear root folder in case there are any files
     delete_files_in_folder(config.downloads.root_folder)

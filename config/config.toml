@@ -1,12 +1,12 @@
 [downloads]
-# Folder where original files will be downloaded
+# Folder where original files will be downloaded then moved to a sub 'YYYY-MM-DD/format' folder
 root_folder = "./downloads"
-# Folder where final FLAC files will be exported
-flac_folder = "./downloads/flac"
-# Folder where final MP3 files will be exported
-mp3_folder = "./downloads/mp3"
-# Folder where final WAV files will be exported
-wav_folder = "./downloads/wav"
+# Name of the folder where final FLAC files will be exported
+flac_folder = "flac"
+# Name of the folder where final MP3 files will be exported
+mp3_folder = "mp3"
+# Name of the folder where final WAV files will be exported
+wav_folder = "wav"
 
 [metadata]
 # Relevant remix tokens (everything else will be removed from the title)
