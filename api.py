@@ -253,6 +253,8 @@ def deemix_download(config: Config, queries):
             # Use first result (best match)
             first_result = results['tracks']['items'][0]
             track_urls.append(first_result['external_urls']['spotify'])
+        else:
+            print(f"WARNING: Track not found in Spotify using '{query}'")
 
     # Init Deezer client
     deemix = DeemixClient(
