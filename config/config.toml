@@ -10,7 +10,7 @@ wav_folder = "wav"
 
 [metadata]
 # Relevant remix tokens (everything else will be removed from the title)
-supported_remix_tokens = ["remix", "bootleg", "flip", "edit"]
+supported_remix_tokens = ["remix", "bootleg", "flip", "edit", "vip"]
 # Delimiter used to separate contributing artists tag
 artist_delimiter = "; "
 # Indicates whether or not to remove featuring artists from a track title and file name
@@ -38,5 +38,4 @@ redirect_url = "https://localhost:8888/callback"
 # Download format (false = MP3@320, true = FLAC@44.1)
 flac_format = false
 # Premium Deezer ARL (required)
-# See https://rentry.org/firehawk52#deezer-arls
 deezer_arl = ""

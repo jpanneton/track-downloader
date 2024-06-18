@@ -205,7 +205,7 @@ def format_track_name(config: Config, name: str, remove_noise: bool):
     result = name
 
     # Replace "- ABC Remix" with (ABC Remix) -> Spotify specific
-    result = result.rsplit('-', 1)
+    result = result.rsplit(' - ', 1)
     result = result[0] + f"({result[1].strip()})" if len(result) == 2 else result[0]
 
     # Remove trailing parentheses with useless information (e.g. "Free Download")
@@ -265,7 +265,7 @@ def deemix_download(config: Config, queries):
     )
 
     # Download tracks
-    deemix.download(
+    return deemix.download(
         urls=track_urls,
         path=config.downloads.root_folder,
         flac=config.deemix.flac_format
@@ -297,7 +297,7 @@ def extract_soundcloud_playlist_info(config: Config, playlist_url: str):
         track_info.year = track.display_date.split('-')[0]
         track_info.number = 1
         track_info.genre = config.metadata.default_genre
-        track_info.artwork_url = track.artwork_url.replace('large', 't500x500')
+        track_info.artwork_url = track.artwork_url.replace('large', 't500x500') if track.artwork_url else ''
 
         # Handle download category
         if track.downloadable:
@@ -467,19 +467,21 @@ def process_wav(config: Config, track_info: TrackInfo, filename):
     }
 
     # Download the artwork from the URL and save it to a temporary file
-    artwork_path = os.path.join(config.downloads.root_folder, 'Artwork.jpg')
-    download_file(track_info.artwork_url, artwork_path)
+    artwork_path = None
+    if track_info.artwork_url:
+        artwork_path = os.path.join(config.downloads.root_folder, 'Artwork.jpg')
+        download_file(track_info.artwork_url, artwork_path)
 
     # Export the audio as an MP3 file with the specified bitrate and metadata
     audio.export(dest_path_mp3, format="mp3", bitrate="320k", id3v2_version="3", tags=metadata, cover=artwork_path)
 
     # Set ID3v1 tags
-    audiofile = EasyID3(source_path)
+    audiofile = EasyID3(dest_path_mp3)
     audiofile['date'] = track_info.year
     audiofile.save(v1=1, v2_version=3)
 
     # Delete temporary artwork file
-    if os.path.exists(artwork_path):
+    if artwork_path and os.path.exists(artwork_path):
         os.remove(artwork_path)
 
     # Move WAV from downloads folder
@@ -537,13 +539,21 @@ def download_web_downloads(config: Config, track_infos: list[TrackInfo], web_dri
 
 def download_buy_downloads(config: Config, track_infos: list[TrackInfo]):
     """ Downloads tracks that are available for purchase """
+    track_infos = track_infos.copy()
+
     # Generates queries
     queries = []
     for track_info in track_infos:
         queries.append(f'{track_info.artists[0]} {track_info.title}')
 
     # Execute Deemix
-    deemix_download(config, queries)
+    skipped_tracks = deemix_download(config, queries)
+
+    # Remove skipped tracks from track infos
+    for track_index in sorted(skipped_tracks, reverse=True):
+        track_info = track_infos[track_index]
+        print(f"SKIPPED: {track_info.artists[0]} - {track_info.title}")
+        del track_infos[track_index]
 
     filenames = [f for f in os.listdir(config.downloads.root_folder) if is_file_downloaded(config, f)]
     if len(filenames) == len(track_infos):
@@ -607,8 +617,11 @@ def download_playlist(config: Config, playlist_info: PlaylistInfo):
             # Close the browser
             web_driver.quit()
     else:
-        # Process track infos
-        download_all_tracks(config, playlist_info, None)
+        try:
+            # Process track infos
+            download_all_tracks(config, playlist_info, None)
+        except Exception as e:
+            print(e)
 
 def download_playlist_cli(config: Config, playlist_url: str):
     """ Downloads a playlist (console version) """

@@ -21,8 +21,8 @@ class DeemixClient:
 
     def __init__(self, config_folder: str, arl: str, client_id: str, client_secret: str):
         self.deezer = Deezer()
-        success = self.deezer.login_via_arl(arl.strip())
-        assert(success)
+        if not self.deezer.login_via_arl(arl.strip()):
+            raise Exception("ERROR: Invalid Deezer ARL")
 
         self.config_folder = config_folder
         self.settings = loadSettings(config_folder)
@@ -40,9 +40,10 @@ class DeemixClient:
 
     def __del__(self):
         # Delete Spotify config folder when done
-        spotify_config_folder = os.path.join(self.config_folder, 'spotify')
-        if os.path.exists(spotify_config_folder):
-            shutil.rmtree(spotify_config_folder)
+        if hasattr(self, 'config_folder'):
+            spotify_config_folder = os.path.join(self.config_folder, 'spotify')
+            if os.path.exists(spotify_config_folder):
+                shutil.rmtree(spotify_config_folder)
 
     def download(self, urls: list[str], path: str, flac=False):
         """ Downloads a list of Spotify track URLs """
@@ -50,12 +51,14 @@ class DeemixClient:
         bitrate = TrackFormats.FLAC if flac else TrackFormats.MP3_320
 
         download_objects = []
+        skipped_tracks = []
 
-        for url in urls:
+        for idx, url in enumerate(urls):
             try:
                 download_object = generateDownloadObject(self.deezer, url, bitrate, self.plugins, self.listener)
             except GenerationError as e:
-                print(f"{e.link}: {e.message}")
+                print(f"WARNING: {e.message} ({e.link})")
+                skipped_tracks.append(idx)
                 continue
             if isinstance(download_object, list):
                 download_objects += download_object
@@ -66,3 +69,5 @@ class DeemixClient:
             if obj.__type__ == "Convertable":
                 obj = self.plugins[obj.plugin].convert(self.deezer, obj, self.settings, self.listener)
             Downloader(self.deezer, obj, self.settings, self.listener).start()
+
+        return skipped_tracks
