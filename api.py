@@ -206,7 +206,7 @@ def format_track_name(config: Config, name: str, remove_noise: bool):
 
     # Replace "- ABC Remix" with (ABC Remix) -> Spotify specific
     result = result.rsplit(' - ', 1)
-    result = result[0] + f"({result[1].strip()})" if len(result) == 2 else result[0]
+    result = result[0] + f" ({result[1].strip()})" if len(result) == 2 else result[0]
 
     # Remove trailing parentheses with useless information (e.g. "Free Download")
     if remove_noise:
