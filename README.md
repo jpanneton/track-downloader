@@ -17,17 +17,17 @@ pip install -r requirements.txt
 
 Then, edit `config/config.toml` and add your Deezer ARL.
 
-Note: to download Spotify playlists, you must also [register a new app](https://developer.spotify.com/documentation/web-api/concepts/apps) add your client ID / secret ID in the config.
+Note: to download Spotify playlists, you must also [register a new app](https://developer.spotify.com/documentation/web-api/concepts/apps) and add your client ID / secret ID in the config.
 
 ## Usage
 
-To open up the user interface (recommended):
+To open up the user interface (recommended), either double-click on launch.bat (Windows only) or type the following in a terminal:
 
 ```bash
 python download_tracks.py --gui
 ```
 
-To run the script in command line:
+To run the script in command line (experimental):
 
 ```bash
 python download_tracks.py
