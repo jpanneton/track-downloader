@@ -9,7 +9,7 @@ Python script to download playlists from SoundCloud or Spotify.
 
 ## Installation
 
-First, ensure [Python](https://www.python.org/downloads/) (version 3.10 or greater) and [pip](https://pip.pypa.io/en/stable/installing/) are installed. Then, open a terminal in this folder and enter:
+First, ensure [Python](https://www.python.org/downloads/) (version 3.10 or greater) and [pip](https://pip.pypa.io/en/stable/installation/) are installed. Then, open a terminal in this folder and enter:
 
 ```bash
 pip install -r requirements.txt
