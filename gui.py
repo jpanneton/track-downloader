@@ -6,6 +6,8 @@ from api import (
     extract_playlist_info
 )
 
+from config_editor import open_config_editor
+
 import tkinter as tk
 from tkinter import ttk
 
@@ -140,7 +142,28 @@ def download_playlist_gui(config: Config, playlist_url: str):
     root.minsize(640, 480)
     root.iconbitmap("icon.ico")
 
-    # Init columns
+    # ========== Toolbar ==========
+    toolbar_frame = ttk.Frame(root)
+    toolbar_frame.pack(fill=tk.X, padx=10, pady=5)
+
+    # Config Button (left-aligned)
+    config_button = ttk.Button(toolbar_frame, text="Config", command=lambda: open_config_editor(root, config))
+    config_button.pack(side=tk.LEFT)
+
+    # Playlist controls (centered inside a nested frame)
+    playlist_controls_frame = ttk.Frame(toolbar_frame)
+    playlist_controls_frame.pack(side=tk.LEFT, expand=True)
+
+    playlist_label = ttk.Label(playlist_controls_frame, text="Playlist URL")
+    playlist_entry = ttk.Entry(playlist_controls_frame, width=70)
+    playlist_entry.insert(0, playlist_url)
+    playlist_button = ttk.Button(playlist_controls_frame, text="Load", command=lambda: on_load_playlist())
+
+    playlist_label.pack(side=tk.LEFT)
+    playlist_entry.pack(side=tk.LEFT, padx=10)
+    playlist_button.pack(side=tk.LEFT)
+
+    # ========== Table View ==========
     tableview = TableView(root, columns=('name', 'title', 'artists', 'album', 'albumartists', 'year', 'number', 'genre', 'category'))
     tableview.set_readonly_columns(['category'])
 
@@ -166,15 +189,12 @@ def download_playlist_gui(config: Config, playlist_url: str):
     tableview.heading('genre', text="Genre")
     tableview.heading('category', text="Category")
 
-    playlist_frame = ttk.Frame(root)
-    playlist_label = ttk.Label(playlist_frame, text="Playlist URL")
-    playlist_entry = ttk.Entry(playlist_frame)
-    playlist_entry.insert(0, playlist_url)
+    tableview.pack(expand=True, fill=tk.BOTH, padx=10)
 
     # Global playlist info
     playlist_info = PlaylistInfo()
 
-    # Define button callbacks
+    # ========== Callbacks ==========
     def on_load_playlist():
         nonlocal playlist_info
 
@@ -196,41 +216,24 @@ def download_playlist_gui(config: Config, playlist_url: str):
 
         # Extract selected track infos
         track_infos = playlist_info.get_flat_list()
-        selected_track_infos = []
-        for row in tableview.selection():
-            selected_track_infos.append(track_infos[tableview.index(row)])
+        selected_track_infos = [track_infos[tableview.index(row)] for row in tableview.selection()]
 
         # Download selected tracks
         download_playlist(config, PlaylistInfo.from_flat_list(selected_track_infos))
 
     def on_download_all():
         nonlocal playlist_info
-
-        # Update global playlist info from table view
         update_playlist_info(config, tableview, playlist_info)
-
-        # Download every tracks
         download_playlist(config, playlist_info)
 
-    # Create buttons
-    playlist_button = ttk.Button(playlist_frame, text ="Load", command=on_load_playlist)
-
+    # ========== Download Buttons ==========
     download_buttons_frame = ttk.Frame(root)
-    download_selected_button = ttk.Button(download_buttons_frame, text ="Download Selected", command=on_download_selected)
-    download_all_button = ttk.Button(download_buttons_frame, text ="Download All", command=on_download_all)
-
-    # Layout UI
-    playlist_label.pack(side=tk.LEFT)
-    playlist_entry.pack(side=tk.LEFT, padx=10)
-    playlist_entry.configure(width=70)
-    playlist_button.pack(side=tk.LEFT)
-    playlist_frame.pack(padx=10, pady=10)
-
-    tableview.pack(expand=True, fill=tk.BOTH, padx=10)
+    download_selected_button = ttk.Button(download_buttons_frame, text="Download Selected", command=on_download_selected)
+    download_all_button = ttk.Button(download_buttons_frame, text="Download All", command=on_download_all)
 
     download_selected_button.pack(side=tk.LEFT, padx=10)
     download_all_button.pack(side=tk.LEFT, padx=10)
     download_buttons_frame.pack(padx=10, pady=10)
 
-    # Run main loop
+    # Start main loop
     root.mainloop()
