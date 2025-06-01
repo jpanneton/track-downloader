@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import requests
@@ -13,6 +14,8 @@ from mutagen.flac import FLAC as MutagenFLAC
 from mutagen.mp3 import MP3 as MutagenMP3
 
 from pydub import AudioSegment
+
+from qobuz_dl.core import QobuzDL
 
 from sclib import (
     SoundcloudAPI,
@@ -37,6 +40,8 @@ class DownloadsConfig:
     flac_folder: str
     mp3_folder: str
     wav_folder: str
+    lossless: bool
+    backend: str
 
 @dataclass(slots=True)
 class MetadataConfig:
@@ -50,6 +55,7 @@ class MetadataConfig:
 class SoundcloudConfig:
     supported_download_gates: list[str]
     download_playlist_url: str
+    use_web_driver: bool
 
 @dataclass(slots=True)
 class SpotifyConfig:
@@ -58,9 +64,13 @@ class SpotifyConfig:
     redirect_url: str
 
 @dataclass(slots=True)
-class DeemixConfig:
-    flac_format: bool
+class DeezerConfig:
     deezer_arl: str
+
+@dataclass(slots=True)
+class QobuzConfig:
+    user_id: str
+    token: str
 
 @dataclass(slots=True)
 class Config:
@@ -68,7 +78,8 @@ class Config:
     metadata: MetadataConfig
     soundcloud: SoundcloudConfig
     spotify: SpotifyConfig
-    deemix: DeemixConfig
+    deezer: DeezerConfig
+    qobuz: QobuzConfig
 
     @classmethod
     def from_file(cls, toml_file):
@@ -76,7 +87,8 @@ class Config:
         metadata = MetadataConfig(**toml_file['metadata'])
         soundcloud = SoundcloudConfig(**toml_file['soundcloud'])
         spotify = SpotifyConfig(**toml_file['spotify'])
-        deemix = DeemixConfig(**toml_file['deemix'])
+        deezer = DeezerConfig(**toml_file['deezer'])
+        qobuz = QobuzConfig(**toml_file['qobuz'])
 
         # Get today's date
         current_date = datetime.now().strftime('%Y-%m-%d')
@@ -92,7 +104,8 @@ class Config:
             metadata=metadata,
             soundcloud=soundcloud,
             spotify=spotify,
-            deemix=deemix
+            deezer=deezer,
+            qobuz=qobuz
         )
 
 #--------------------------------------------------------------------
@@ -233,11 +246,11 @@ def extract_spotify_playlist_id(playlist_url):
     return playlist_id if len(playlist_id) == 22 else None
 
 #--------------------------------------------------------------------
-# DEEMIX
+# DEEZER
 #--------------------------------------------------------------------
 
-def deemix_download(config: Config, queries):
-    """ Searches for tracks in Spotify using a query and downloads them from Deezer """    
+def deezer_download(config: Config, queries):
+    """ Searches for tracks in Spotify using a query and downloads them from Deezer """
     # Server-to-server authentication (only works with public playlists)
     spotify = Spotify(client_credentials_manager=SpotifyClientCredentials(
         client_id=config.spotify.client_id,
@@ -259,7 +272,7 @@ def deemix_download(config: Config, queries):
     # Init Deezer client
     deemix = DeemixClient(
         config_folder = "./config/deemix",
-        arl=config.deemix.deezer_arl,
+        arl=config.deezer.deezer_arl,
         client_id=config.spotify.client_id,
         client_secret=config.spotify.client_secret
     )
@@ -268,8 +281,44 @@ def deemix_download(config: Config, queries):
     return deemix.download(
         urls=track_urls,
         path=config.downloads.root_folder,
-        flac=config.deemix.flac_format
+        flac=config.downloads.lossless
     )
+
+#--------------------------------------------------------------------
+# QOBUZ-DL
+#--------------------------------------------------------------------
+
+def qobuz_download(config: Config, queries):
+    """ Searches for tracks in Qobuz using a query and downloads them """
+    logger = logging.getLogger('qobuz_dl')
+    logger.setLevel(logging.WARNING)
+
+    # Init Qobuz client
+    qobuz = QobuzDL(
+        directory=config.downloads.root_folder,
+        quality=6 if config.downloads.lossless else 5,
+        embed_art=True,
+        lucky_type="track"
+    )
+    qobuz.get_tokens() # Get 'app_id' and 'secrets' attributes
+    qobuz.initialize_client(
+        config.qobuz.user_id,
+        config.qobuz.token,
+        qobuz.app_id,
+        qobuz.secrets
+    )
+
+    # Download tracks
+    skipped_tracks = []
+    for idx, query in enumerate(queries):
+        try:
+            if len(qobuz.lucky_mode(query)) == 0:
+                skipped_tracks.append(idx)
+        except Exception as e:
+            print(f"WARNING: {e.message}")
+            skipped_tracks.append(idx)
+            continue
+    return skipped_tracks
 
 #--------------------------------------------------------------------
 # MAIN
@@ -401,7 +450,9 @@ def process_flac(config: Config, track_info: TrackInfo, filename):
 
     # Check if the file has expected quality
     bitrate = audiofile.info.bitrate // 1000
-    assert(config.deemix.flac_format)
+
+    if track_info.category == 'Buy' and not config.downloads.lossless:
+        print(f"WARNING: {filename} is in flac format (expected mp3)")
     if bitrate <= 320:
         print(f"WARNING: {filename} has a bitrate of {bitrate} kbps (expected > 320)")
 
@@ -432,7 +483,9 @@ def process_mp3(config: Config, track_info: TrackInfo, filename):
 
     # Check if the file has expected quality
     bitrate = audiofile.info.bitrate // 1000
-    assert(not config.deemix.flac_format)
+
+    if track_info.category == 'Buy' and config.downloads.lossless:
+        print(f"WARNING: {filename} is in mp3 format (expected flac)")
     if bitrate != 320:
         print(f"WARNING: {filename} has a bitrate of {bitrate} kbps (expected 320)")
 
@@ -521,11 +574,15 @@ def download_web_downloads(config: Config, track_infos: list[TrackInfo], web_dri
     for track_info in track_infos:
         print(f'* {track_info.name}')
 
-        # Open a page with the download gate
-        web_driver.get(track_info.download_url)
+        if web_driver:
+            # Open a page with the download gate
+            web_driver.get(track_info.download_url)
 
-        # Prompt the user to continue after downloading
-        input("Download track then press Enter to continue...")
+            # Prompt the user to continue after downloading
+            input("Download track then press Enter to continue...")
+        else:
+            # Prompt the user to continue after downloading
+            input("Download track manually, move it to 'downloads' folder then press Enter to continue...")
 
         # Process the file
         filenames = [f for f in os.listdir(config.downloads.root_folder) if is_file_downloaded(config, f)]
@@ -546,8 +603,14 @@ def download_buy_downloads(config: Config, track_infos: list[TrackInfo]):
     for track_info in track_infos:
         queries.append(f'{track_info.artists[0]} {track_info.title}')
 
-    # Execute Deemix
-    skipped_tracks = deemix_download(config, queries)
+    # Execute download backend
+    if config.downloads.backend == 'deezer':
+        skipped_tracks = deezer_download(config, queries)
+    elif config.downloads.backend == 'qobuz':
+        skipped_tracks = qobuz_download(config, queries)
+    else:
+        print("ERROR: Invalid download backend '{config.downloads.backend}'")
+        return
 
     # Remove skipped tracks from track infos
     for track_index in sorted(skipped_tracks, reverse=True):
@@ -596,11 +659,12 @@ def download_playlist(config: Config, playlist_info: PlaylistInfo):
     delete_files_in_folder(config.downloads.root_folder)
 
     # Create web driver only if needed
-    if playlist_info.gate_downloads or playlist_info.direct_downloads:
+    if config.soundcloud.use_web_driver and (playlist_info.gate_downloads or playlist_info.direct_downloads):
         try:
             # Setup Chrome options
             chrome_options = ChromeOptions()
             chrome_options.add_argument('--log-level=3')
+            chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
             chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
             chrome_options.add_experimental_option('prefs', {'download.default_directory' : config.downloads.root_folder})
 

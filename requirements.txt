@@ -2,6 +2,7 @@ deemix==3.6.6
 deezer_py==1.3.6
 mutagen==1.47.0
 pydub==0.25.1
+qobuz-dl-babymetaldev @ git+https://github.com/streetsamurai00mi/qz-dl@dev
 requests==2.31.0
 selenium==4.19.0
 soundcloud_lib==0.6.1

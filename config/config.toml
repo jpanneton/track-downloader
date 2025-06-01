@@ -7,6 +7,10 @@ flac_folder = "flac"
 mp3_folder = "mp3"
 # Name of the folder where final WAV files will be exported
 wav_folder = "wav"
+# Download format (false = MP3@320, true = FLAC@44.1)
+lossless = false
+# Download backend ('deezer', 'qobuz')
+backend = "deezer"
 
 [metadata]
 # Relevant remix tokens (everything else will be removed from the title)
@@ -25,6 +29,8 @@ default_genre = ""
 supported_download_gates = ["hypeddit", "toneden"]
 # SoundCloud playlist to download (private or public)
 download_playlist_url = ""
+# Use an interactive browser instance to download from gates (experimental)
+use_web_driver = false
 
 [spotify]
 # Client ID of the registered Spotify application
@@ -34,8 +40,11 @@ client_secret = ""
 # Redirect URI used by Spotify OAuth
 redirect_url = "https://localhost:8888/callback"
 
-[deemix]
-# Download format (false = MP3@320, true = FLAC@44.1)
-flac_format = false
+[deezer]
 # Premium Deezer ARL (required)
+# See https://rentry.org/firehawk52#deezer-arls
 deezer_arl = ""
+
+[qobuz]
+user_id = ""
+token = ""
