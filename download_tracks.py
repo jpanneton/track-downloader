@@ -1,6 +1,7 @@
 import argparse
 
-from api import Config, download_playlist_cli
+from config import Config
+from api import download_playlist_cli
 from gui import download_playlist_gui
 
 def main():

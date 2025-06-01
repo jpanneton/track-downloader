@@ -1,11 +1,11 @@
 from api import (
-    Config,
     PlaylistInfo,
     TrackInfo,
     download_playlist,
     extract_playlist_info
 )
 
+from config import Config
 from config_editor import open_config_editor
 
 import tkinter as tk
