@@ -63,13 +63,13 @@ class ConfigEditor:
                 if backend == "deezer":
                     try:
                         deezer_download(self.generate_config(), [])
-                        messagebox.showinfo("Success", "Authentification successful!")
+                        messagebox.showinfo("Success", "Valid Deezer ARL!")
                     except:
                         messagebox.showerror("Error", "Invalid Deezer ARL")
                 elif backend == "qobuz":
                     try:
                         qobuz_download(self.generate_config(), [])
-                        messagebox.showinfo("Success", "Authentification successful!")
+                        messagebox.showinfo("Success", "Valid Qobuz user ID and token!")
                     except:
                         messagebox.showerror("Error", "Invalid Qobuz user ID or token")
 

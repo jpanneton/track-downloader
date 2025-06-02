@@ -355,6 +355,45 @@ def extract_playlist_info(config: Config, playlist_url: str):
         print(f"ERROR: Invalid playlist URL")
         return PlaylistInfo()
 
+def validate_file(config: Config, track_info: TrackInfo, track_metadata, filename):
+    def extract_before_delimiter(s: str):
+        return re.split(r'[\[\{\(\-\&\,]', s, maxsplit=1)[0].strip()
+
+    def has_matching_or_no_tokens(str1: str, str2: str, tokens):
+        tokens_in_str1 = { token for token in tokens if token in str1.lower() }
+        tokens_in_str2 = { token for token in tokens if token in str2.lower() }
+
+        if not tokens_in_str1 and not tokens_in_str2:
+            return True  # No token in either string
+        return bool(tokens_in_str1 & tokens_in_str2) # At least one shared token
+
+    # Get the expected track info
+    expected_title = track_info.title.lower()
+    expected_artists = [
+        artist.lower()
+        for artist_list in (track_info.artists, track_info.album_artists)
+        for artist in artist_list
+    ]
+
+    # Simplify the expectations 
+    simplified_title = extract_before_delimiter(expected_title)
+    simplified_artists = [extract_before_delimiter(artist) for artist in expected_artists]
+
+    # Get the actual track info
+    filename = filename.lower()
+    actual_title = " ".join(track_metadata.get('title', [])).lower()
+    actual_artists = " ".join(track_metadata.get('artist', []) + track_metadata.get('albumartist', [])).lower()
+
+    # Title must match
+    if simplified_title in actual_title or simplified_title in filename:
+        # Artists must match (at least one)
+        if any(artist in actual_artists or artist in filename for artist in simplified_artists):
+            # Remix token must match (if any)
+            remix_tokens = config.metadata.supported_remix_tokens
+            if has_matching_or_no_tokens(expected_title, filename + actual_title, remix_tokens):
+                return True
+    return False
+
 def process_flac(config: Config, track_info: TrackInfo, filename):
     """ Generates a properly tagged FLAC """
     # Make sure the destination FLAC folder exists
@@ -368,6 +407,11 @@ def process_flac(config: Config, track_info: TrackInfo, filename):
 
     # Update tags
     audiofile = MutagenFLAC(source_path)
+    if not validate_file(config, track_info, audiofile, filename):
+        os.remove(source_path)
+        print(f"WARNING: {track_info.name} could not be downloaded")
+        return
+
     audiofile['title'] = track_info.title
     audiofile['artist'] = config.metadata.artist_delimiter.join(track_info.artists)
     audiofile['album'] = track_info.album
@@ -401,6 +445,11 @@ def process_mp3(config: Config, track_info: TrackInfo, filename):
 
     # Update tags
     audiofile = MutagenMP3(source_path, ID3=EasyID3)
+    if not validate_file(config, track_info, audiofile, filename):
+        os.remove(source_path)
+        print(f"WARNING: {track_info.name} could not be downloaded")
+        return
+
     audiofile['title'] = track_info.title
     audiofile['artist'] = config.metadata.artist_delimiter.join(track_info.artists)
     audiofile['album'] = track_info.album
