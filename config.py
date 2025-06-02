@@ -11,8 +11,9 @@ class DownloadsConfig:
     flac_folder: str
     mp3_folder: str
     wav_folder: str
-    lossless: bool
     backend: str
+    lossless: bool
+    playlist_url: str
 
 @dataclass(slots=True)
 class MetadataConfig:
@@ -25,7 +26,6 @@ class MetadataConfig:
 @dataclass(slots=True)
 class SoundcloudConfig:
     supported_download_gates: list[str]
-    download_playlist_url: str
     use_web_driver: bool
 
 @dataclass(slots=True)

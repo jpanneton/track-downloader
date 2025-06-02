@@ -7,10 +7,12 @@ flac_folder = "flac"
 mp3_folder = "mp3"
 # Name of the folder where final WAV files will be exported
 wav_folder = "wav"
-# Download format (false = MP3@320, true = FLAC@44.1)
-lossless = false
 # Download backend ('deezer', 'qobuz')
 backend = "deezer"
+# Download format (false = MP3@320, true = FLAC@44.1)
+lossless = false
+# Playlist to download (must be public if Spotify)
+playlist_url = ""
 
 [metadata]
 # Relevant remix tokens (everything else will be removed from the title)
@@ -27,8 +29,6 @@ default_genre = ""
 [soundcloud]
 # Website names that will be detected as a download gate
 supported_download_gates = ["hypeddit", "toneden"]
-# SoundCloud playlist to download (private or public)
-download_playlist_url = ""
 # Use an interactive browser instance to download from gates (experimental)
 use_web_driver = false
 

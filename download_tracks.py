@@ -13,9 +13,9 @@ def main():
     try:
         config = Config.load()
         if args.gui:
-            download_playlist_gui(config, config.soundcloud.download_playlist_url)
+            download_playlist_gui(config, config.downloads.playlist_url)
         else:
-            download_playlist_cli(config, config.soundcloud.download_playlist_url)
+            download_playlist_cli(config, config.downloads.playlist_url)
                 
     except FileNotFoundError:
         print("No config file found")
