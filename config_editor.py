@@ -3,65 +3,20 @@ import ast
 from dataclasses import fields, is_dataclass
 
 import tkinter as tk
-from tkinter import ttk, font
+from tkinter import ttk, font, messagebox
 
-def add_config_row(parent, label_text, var):
-    # Container
-    frame = ttk.Frame(parent)
-    frame.pack(fill='x', pady=2)
+from api import deezer_download, qobuz_download
 
-    # Left label
-    label = ttk.Label(frame, text=label_text, width=25, anchor='w')
-    label.pack(side='left')
+from config import Config
 
-    # Input field
-    if isinstance(var, tk.BooleanVar):
-        cb = ttk.Checkbutton(frame, variable=var)
-        cb.pack(side='left')
-    else:
-        entry = ttk.Entry(frame, textvariable=var, width=50)
-        entry.pack(side='left')
-
-def build_config_form(parent, config):
-    # Get default font
-    default_font = font.nametofont('TkTextFont').actual()
-    font_family = default_font['family']
-    font_size = default_font['size']
-
-    # Generate controls
-    widgets = {}
-    for field in fields(config):
-        value = getattr(config, field.name)
-        if is_dataclass(value):
-            # Section header
-            label = ttk.Label(parent, text=field.name.capitalize(), font=(font_family, font_size + 1, 'bold'))
-            label.pack(anchor='w', pady=(10, 2))
-
-            # Section container
-            subframe = ttk.Frame(parent, borderwidth=1, padding=5)
-            subframe.pack(fill='x', padx=10, pady=2)
-
-            # Build section
-            widgets[field.name] = build_config_form(subframe, value)
-        else:
-            # Add attribute to section
-            if isinstance(value, list):
-                var = tk.StringVar(value=repr(value))
-            elif type(value) is bool:
-                var = tk.BooleanVar(value=value)
-            else:
-                var = tk.StringVar(value=value)
-            add_config_row(parent, field.name, var)
-            widgets[field.name] = var
-    return widgets
-
-def generate_config(cls, widget_dict):
+# Generates a Config instance based on the state of the controls
+def generate_config_from_dict(cls, widget_dict):
     init_kwargs = {}
     for field in fields(cls):
         val = widget_dict[field.name]
         if isinstance(val, dict):
             # Read section
-            init_kwargs[field.name] = generate_config(field.type, val)
+            init_kwargs[field.name] = generate_config_from_dict(field.type, val)
         else:
             # Read attribute
             raw_val = val.get()
@@ -82,27 +37,126 @@ def generate_config(cls, widget_dict):
             init_kwargs[field.name] = parsed_val
     return cls(**init_kwargs)
 
-def open_config_editor(root, config):
-    window = tk.Toplevel(root)
-    window.title("Config Editor")
-    window.resizable(False, False)
-    window.iconbitmap("icon.ico")
+class ConfigEditor:
+    def __init__(self, config: Config):
+        self.config = config
+        self.window = None
+        self.dict = {}
 
-    form_widgets = build_config_form(window, config)
+    def add_config_row(self, parent, label_text, var):
+        # Container
+        frame = ttk.Frame(parent)
+        frame.pack(fill='x', pady=2)
 
-    def on_cancel():
-        window.destroy()
+        # Left label
+        label = ttk.Label(frame, text=label_text, width=25, anchor='w')
+        label.pack(side='left')
 
-    def on_save():
-        new_config = generate_config(type(config), form_widgets)
-        new_config.save()
-        window.destroy()
+        # Input field
+        if label_text == "backend":
+            # Use combobox for backend instead of entry
+            combo = ttk.Combobox(frame, textvariable=var, values=["deezer", "qobuz"], state="readonly")
+            combo.pack(side='left', fill='x', expand=True, padx=(0, 5))
 
-    # Button container
-    button_frame = ttk.Frame(window)
-    button_frame.pack(pady=10)
+            def on_test_backend():
+                backend = var.get()
+                if backend == "deezer":
+                    try:
+                        deezer_download(self.generate_config(), [])
+                        messagebox.showinfo("Success", "Authentification successful!")
+                    except:
+                        messagebox.showerror("Error", "Invalid Deezer ARL")
+                elif backend == "qobuz":
+                    try:
+                        qobuz_download(self.generate_config(), [])
+                        messagebox.showinfo("Success", "Authentification successful!")
+                    except:
+                        messagebox.showerror("Error", "Invalid Qobuz user ID or token")
 
-    # Cancel button (left)
-    ttk.Button(button_frame, text="Cancel", command=on_cancel).pack(side=tk.LEFT, padx=(0, 5))
-    # Save button (right)
-    ttk.Button(button_frame, text="Save", command=on_save).pack(side=tk.LEFT)
+            # Add test button
+            test_button = ttk.Button(frame, text="Test", command=on_test_backend)
+            test_button.pack(side='right')
+        elif isinstance(var, tk.BooleanVar):
+            cb = ttk.Checkbutton(frame, variable=var)
+            cb.pack(side='left')
+        else:
+            entry = ttk.Entry(frame, textvariable=var, width=50)
+            entry.pack(side='left')
+
+    def build_form(self, parent, config):
+        # Get default font
+        default_font = font.nametofont('TkTextFont').actual()
+        font_family = default_font['family']
+        font_size = default_font['size']
+
+        # Generate controls
+        dict = {}
+        for field in fields(config):
+            value = getattr(config, field.name)
+            if is_dataclass(value):
+                # Section header
+                label = ttk.Label(parent, text=field.name.capitalize(), font=(font_family, font_size + 1, 'bold'))
+                label.pack(anchor='w', pady=(10, 2))
+
+                # Section container
+                subframe = ttk.Frame(parent, borderwidth=1, padding=5)
+                subframe.pack(fill='x', padx=10, pady=2)
+
+                # Build section
+                dict[field.name] = self.build_form(subframe, value)
+            else:
+                # Add attribute to section
+                if isinstance(value, list):
+                    var = tk.StringVar(value=repr(value))
+                elif type(value) is bool:
+                    var = tk.BooleanVar(value=value)
+                else:
+                    var = tk.StringVar(value=value)
+                self.add_config_row(parent, field.name, var)
+                dict[field.name] = var
+        return dict
+
+    def generate_config(self):
+        return generate_config_from_dict(type(self.config), self.dict)
+
+    def close(self):
+        self.window.destroy()
+        self.window = None
+        self.dict = {}
+
+    def open(self, root):
+        self.window = tk.Toplevel(root)
+        self.window.title("Config Editor")
+        self.window.resizable(False, False)
+        self.window.iconbitmap("icon.ico")
+
+        self.dict = self.build_form(self.window, self.config)
+
+        def on_cancel():
+            self.close()
+
+        def on_save():
+            config = self.generate_config()
+
+            # Mutate the original config in place
+            self.config.downloads = config.downloads
+            self.config.metadata = config.metadata
+            self.config.soundcloud = config.soundcloud
+            self.config.spotify = config.spotify
+            self.config.deezer = config.deezer
+            self.config.qobuz = config.qobuz
+
+            # Update config file
+            self.config.save()
+
+            # Close window
+            self.close()
+
+        # Button container
+        button_frame = ttk.Frame(self.window)
+        button_frame.pack(pady=10)
+
+        # Cancel button (left)
+        ttk.Button(button_frame, text="Cancel", command=on_cancel).pack(side=tk.LEFT, padx=(0, 5))
+        # Save button (right)
+        ttk.Button(button_frame, text="Save", command=on_save).pack(side=tk.LEFT)

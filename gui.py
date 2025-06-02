@@ -6,7 +6,7 @@ from api import (
 )
 
 from config import Config
-from config_editor import open_config_editor
+from config_editor import ConfigEditor
 
 import tkinter as tk
 from tkinter import ttk
@@ -147,7 +147,8 @@ def download_playlist_gui(config: Config, playlist_url: str):
     toolbar_frame.pack(fill=tk.X, padx=10, pady=5)
 
     # Config Button (left-aligned)
-    config_button = ttk.Button(toolbar_frame, text="Config", command=lambda: open_config_editor(root, config))
+    config_editor = ConfigEditor(config)
+    config_button = ttk.Button(toolbar_frame, text="Config", command=lambda: config_editor.open(root))
     config_button.pack(side=tk.LEFT)
 
     # Playlist controls (centered inside a nested frame)

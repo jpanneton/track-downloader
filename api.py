@@ -1,5 +1,3 @@
-from config import Config
-
 import logging
 import os
 import re
@@ -28,6 +26,8 @@ from spotipy import Spotify
 from spotipy.oauth2 import SpotifyClientCredentials
 
 from urllib.parse import urlparse
+
+from config import Config
 
 #--------------------------------------------------------------------
 # TYPES
@@ -206,7 +206,7 @@ def deezer_download(config: Config, queries):
     )
 
 #--------------------------------------------------------------------
-# QOBUZ-DL
+# QOBUZ
 #--------------------------------------------------------------------
 
 def qobuz_download(config: Config, queries):
@@ -223,10 +223,10 @@ def qobuz_download(config: Config, queries):
     )
     qobuz.get_tokens() # Get 'app_id' and 'secrets' attributes
     qobuz.initialize_client(
-        config.qobuz.user_id,
-        config.qobuz.token,
-        qobuz.app_id,
-        qobuz.secrets
+        str(config.qobuz.user_id),
+        str(config.qobuz.token),
+        str(qobuz.app_id),
+        str(qobuz.secrets)
     )
 
     # Download tracks
@@ -242,7 +242,7 @@ def qobuz_download(config: Config, queries):
     return skipped_tracks
 
 #--------------------------------------------------------------------
-# MAIN
+# SOUNDCLOUD
 #--------------------------------------------------------------------
 
 def extract_soundcloud_playlist_info(config: Config, playlist_url: str):
@@ -284,6 +284,10 @@ def extract_soundcloud_playlist_info(config: Config, playlist_url: str):
             playlist_info.buy_downloads.append(track_info)
 
     return playlist_info
+
+#--------------------------------------------------------------------
+# SPOTIFY
+#--------------------------------------------------------------------
 
 def extract_spotify_playlist_info(config: Config, playlist_url: str):
     """ Extracts the info of tracks in a Spotify playlist """
@@ -335,6 +339,10 @@ def extract_spotify_playlist_info(config: Config, playlist_url: str):
         playlist_info.buy_downloads.append(track_info)
 
     return playlist_info
+
+#--------------------------------------------------------------------
+# MAIN
+#--------------------------------------------------------------------
 
 def extract_playlist_info(config: Config, playlist_url: str):
     """ Extracts the info of tracks in a playlist """

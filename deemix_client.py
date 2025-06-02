@@ -13,8 +13,8 @@ from deezer import TrackFormats
 
 class DeemixClient:
     class LogListener:
-        @classmethod
-        def send(cls, key, value=None):
+        @staticmethod
+        def send(key, value=None):
             logString = formatListener(key, value)
             if logString:
                 print(logString)

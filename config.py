@@ -85,9 +85,9 @@ class Config:
                 qobuz=qobuz
             )
         except FileNotFoundError:
-            print(f"Config file not found: {toml_path}")
+            print(f"ERROR: Config file not found: {toml_path}")
         except Exception as e:
-            print(f"Unexpected error loading config: {e}")
+            print(f"ERROR: Unexpected error loading config: {e}")
 
     def save(self):
         def dataclass_to_dict(instance):
@@ -139,6 +139,6 @@ class Config:
             # Save config
             Path(toml_path).write_text(dumps_toml(doc), encoding='utf-8')
         except FileNotFoundError:
-            print(f"Config file not found: {toml_path}")
+            print(f"ERROR: Config file not found: {toml_path}")
         except Exception as e:
-            print(f"Unexpected error saving config: {e}")
+            print(f"ERROR: Unexpected error saving config: {e}")
