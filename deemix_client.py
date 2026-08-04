@@ -12,6 +12,8 @@ from deemix.plugins.spotify import Spotify
 from deezer import Deezer
 from deezer import TrackFormats
 
+from errors import ConfigurationError
+
 logger = logging.getLogger(__name__)
 
 class DeemixClient:
@@ -25,7 +27,7 @@ class DeemixClient:
     def __init__(self, config_folder: str, arl: str, client_id: str, client_secret: str):
         self.deezer = Deezer()
         if not self.deezer.login_via_arl(arl.strip()):
-            raise Exception("ERROR: Invalid Deezer ARL")
+            raise ConfigurationError("Deezer rejected the ARL. It is invalid or has expired.")
 
         self.config_folder = config_folder
         self.settings = loadSettings(config_folder)

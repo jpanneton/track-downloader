@@ -1,10 +1,10 @@
 import logging
 
-from spotipy import Spotify
-from spotipy.oauth2 import SpotifyClientCredentials
-
 from backends.base import DownloadBackend
+from config import require_settings
 from deemix_client import DeemixClient
+from errors import BackendError, format_error
+from sources.spotify import create_spotify_client
 
 logger = logging.getLogger(__name__)
 
@@ -13,11 +13,10 @@ class DeezerBackend(DownloadBackend):
     name = 'deezer'
 
     def connect(self):
-        # Server-to-server authentication (only works with public playlists)
-        self.spotify = Spotify(client_credentials_manager=SpotifyClientCredentials(
-            client_id=self.config.spotify.client_id,
-            client_secret=self.config.spotify.client_secret
-        ))
+        # Tracks are looked up in Spotify before being fetched from Deezer
+        self.spotify = create_spotify_client(self.config)
+
+        require_settings('Deezer', deezer_arl=self.config.deezer.deezer_arl)
 
         self.deemix = DeemixClient(
             config_folder="./config/deemix",
@@ -28,7 +27,11 @@ class DeezerBackend(DownloadBackend):
 
     def download_query(self, query: str):
         # Deezer is reached through a Spotify track URL
-        results = self.spotify.search(q=query, type='track', limit=1)['tracks']['items']
+        try:
+            results = self.spotify.search(q=query, type='track', limit=1)['tracks']['items']
+        except Exception as e:
+            raise BackendError(f"Spotify search failed: {format_error(e)}")
+
         if not results:
             logger.warning(f"Track not found in Spotify using '{query}'")
             return

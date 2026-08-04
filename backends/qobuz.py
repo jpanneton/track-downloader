@@ -4,6 +4,8 @@ from qobuz_dl.core import QobuzDL
 from qobuz_dl.exceptions import AuthenticationError
 
 from backends.base import DownloadBackend
+from config import require_settings
+from errors import BackendError, format_error
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +15,14 @@ class QobuzBackend(DownloadBackend):
 
     def connect(self):
         logging.getLogger('qobuz_dl').setLevel(logging.WARNING)
+
+        require_settings(
+            'Qobuz',
+            user_id=self.config.qobuz.user_id,
+            token=self.config.qobuz.token,
+            app_id=self.config.qobuz.app_id,
+            app_secret=self.config.qobuz.app_secret
+        )
 
         self.qobuz = QobuzDL(
             directory=self.config.downloads.root_folder,
