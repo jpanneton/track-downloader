@@ -38,6 +38,9 @@ from config import Config
 
 SUPPORTED_AUDIO_EXTENSIONS = ('.flac', '.mp3', '.wav')
 
+# Folder where files that failed validation are kept for inspection
+REJECTED_FOLDER_NAME = '_rejected'
+
 #--------------------------------------------------------------------
 # TYPES
 #--------------------------------------------------------------------
@@ -105,6 +108,26 @@ def delete_files_in_folder(folder_path):
         if os.path.isfile(item_path):
             # Delete the file
             os.remove(item_path)
+
+def quarantine_file(config: Config, source_path):
+    """ Moves a file that failed validation out of the downloads folder
+        Keeping it makes a wrong rejection recoverable and inspectable
+    """
+    rejected_folder = os.path.join(config.downloads.root_folder, REJECTED_FOLDER_NAME)
+    os.makedirs(rejected_folder, exist_ok=True)
+
+    filename = os.path.basename(source_path)
+    name, extension = os.path.splitext(filename)
+
+    # Avoid overwriting a previously rejected file
+    destination_path = os.path.join(rejected_folder, filename)
+    duplicate_index = 1
+    while os.path.exists(destination_path):
+        destination_path = os.path.join(rejected_folder, f'{name} ({duplicate_index}){extension}')
+        duplicate_index += 1
+
+    shutil.move(source_path, destination_path)
+    return destination_path
 
 def download_file(url, dest_path):
     """ Downloads a file from a URL """
@@ -497,8 +520,8 @@ def process_flac(config: Config, track_info: TrackInfo, filename):
     # Update tags
     audiofile = MutagenFLAC(source_path)
     if not validate_file(config, track_info, audiofile, filename):
-        os.remove(source_path)
-        print(f"WARNING: {track_info.name} could not be downloaded")
+        quarantine_file(config, source_path)
+        print(f"WARNING: {track_info.name} did not match, moved to '{REJECTED_FOLDER_NAME}'")
         return
 
     audiofile['title'] = track_info.title
@@ -535,8 +558,8 @@ def process_mp3(config: Config, track_info: TrackInfo, filename):
     # Update tags
     audiofile = MutagenMP3(source_path, ID3=EasyID3)
     if not validate_file(config, track_info, audiofile, filename):
-        os.remove(source_path)
-        print(f"WARNING: {track_info.name} could not be downloaded")
+        quarantine_file(config, source_path)
+        print(f"WARNING: {track_info.name} did not match, moved to '{REJECTED_FOLDER_NAME}'")
         return
 
     audiofile['title'] = track_info.title
