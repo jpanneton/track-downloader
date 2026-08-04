@@ -224,12 +224,11 @@ def deezer_download(config: Config, queries):
     # Search for tracks
     track_urls = []
     for query in queries:
-        results = spotify.search(q=query, type='track', limit=1)
+        results = spotify.search(q=query, type='track', limit=1)['tracks']['items']
 
-        if len(results) > 0:
+        if results:
             # Use first result (best match)
-            first_result = results['tracks']['items'][0]
-            track_urls.append(first_result['external_urls']['spotify'])
+            track_urls.append(results[0]['external_urls']['spotify'])
         else:
             print(f"WARNING: Track not found in Spotify using '{query}'")
 
