@@ -391,6 +391,11 @@ def extract_spotify_playlist_info(config: Config, playlist_url: str):
 
     playlist_info = PlaylistInfo()
     for track in playlist:
+        # Local files and tracks unavailable in the market have no track data
+        if not track.get('track') or track['track'].get('is_local'):
+            print("WARNING: Skipping unavailable track")
+            continue
+
         # Check if the track is part of an album (not in a compilation nor a single)
         is_in_album = (track['track']['album']['album_type'] == 'album' or
             (track['track']['album']['album_type'] == 'single' and
