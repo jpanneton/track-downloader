@@ -6,11 +6,6 @@ from deemix_client import DeemixClient
 from qobuz_dl.core import QobuzDL
 from qobuz_dl.exceptions import AuthenticationError
 
-from sclib import (
-    SoundcloudAPI,
-    Playlist as SoundcloudPlaylist
-)
-
 from selenium.webdriver import Chrome as ChromeDriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 
@@ -19,15 +14,9 @@ from spotipy.oauth2 import SpotifyClientCredentials
 
 from config import Config
 from models import PlaylistInfo, TrackInfo
+from sources import extract_playlist_info
 from tagging import process_file
-from utils import (
-    extract_spotify_playlist_id,
-    extract_website_name,
-    flatten_folder,
-    format_track_name,
-    is_download_gate,
-    list_downloaded_files
-)
+from utils import flatten_folder, list_downloaded_files
 
 #--------------------------------------------------------------------
 # DEEZER
@@ -138,131 +127,6 @@ def qobuz_download(config: Config, queries):
     flatten_folder(config.downloads.root_folder)
 
     return skipped_tracks
-
-#--------------------------------------------------------------------
-# SOUNDCLOUD
-#--------------------------------------------------------------------
-
-def extract_soundcloud_playlist_info(config: Config, playlist_url: str):
-    """ Extracts the info of tracks in a SoundCloud playlist """
-    print("INFO: Extracting SoundCloud playlist info...")
-
-    api = SoundcloudAPI()
-    playlist = api.resolve(playlist_url)
-
-    # Make sure the playlist was resolved properly
-    assert type(playlist) is SoundcloudPlaylist
-
-    playlist_info = PlaylistInfo()
-    for track in playlist.tracks:
-        # Fill track info
-        track_info = TrackInfo()
-        track_info.title = format_track_name(config, track.title, True)
-        track_info.artists = [track.artist]
-        track_info.name = f"{' & '.join(track_info.artists)} - {track_info.title}"
-        track_info.album = track_info.title if config.metadata.tag_single_album else ''
-        track_info.album_artists = []
-        track_info.year = track.display_date.split('-')[0]
-        track_info.number = 1
-        track_info.genre = config.metadata.default_genre
-        track_info.artwork_url = track.artwork_url.replace('large', 't500x500') if track.artwork_url else ''
-
-        # Handle download category
-        if track.downloadable:
-            track_info.download_url = track.permalink_url # download_url requires client ID
-            track_info.category = 'Direct'
-            playlist_info.direct_downloads.append(track_info)
-        elif track.purchase_url and is_download_gate(config, track.purchase_url):
-            track_info.download_url = track.purchase_url
-            track_info.category = 'Gate'
-            playlist_info.gate_downloads.append(track_info)
-        else:
-            track_info.download_url = ''
-            track_info.category = 'Buy'
-            playlist_info.buy_downloads.append(track_info)
-
-    return playlist_info
-
-#--------------------------------------------------------------------
-# SPOTIFY
-#--------------------------------------------------------------------
-
-def extract_spotify_playlist_info(config: Config, playlist_url: str):
-    """ Extracts the info of tracks in a Spotify playlist """
-    print("INFO: Extracting Spotify playlist info...")
-
-    playlist_id = extract_spotify_playlist_id(playlist_url)
-    if playlist_id == None:
-        print("ERROR: Invalid Spotify playlist")
-        return
-
-    # Server-to-server authentication (only works with public playlists)
-    spotify = Spotify(client_credentials_manager=SpotifyClientCredentials(
-        client_id=config.spotify.client_id,
-        client_secret=config.spotify.client_secret
-    ))
-
-    # Collect every page, a single response holds 100 tracks at most
-    playlist = []
-    page = spotify.playlist_tracks(playlist_id)
-    while page:
-        playlist.extend(page['items'])
-        page = spotify.next(page) if page['next'] else None
-
-    playlist_info = PlaylistInfo()
-    for track in playlist:
-        # Local files and tracks unavailable in the market have no track data
-        if not track.get('track') or track['track'].get('is_local'):
-            print("WARNING: Skipping unavailable track")
-            continue
-
-        # Check if the track is part of an album (not in a compilation nor a single)
-        is_in_album = (track['track']['album']['album_type'] == 'album' or
-            (track['track']['album']['album_type'] == 'single' and
-             track['track']['track_number'] != 1))
-
-        # Check if the track is a remix
-        is_remix = any(track['track']['name'].lower().endswith(token) for token in config.metadata.supported_remix_tokens)
-
-        # Get album artists
-        album_artists = [t['name'] for t in track['track']['album']['artists']]
-        if len(album_artists) > 1 and is_remix:
-            album_artists.pop() # Remove last artist (usually the remix artist)
-
-        # Fill track info
-        track_info = TrackInfo()
-        track_info.title = format_track_name(config, track['track']['name'], False)
-        track_info.artists = [t['name'] for t in track['track']['artists']]
-        track_info.name = f"{' & '.join(album_artists)} - {track_info.title}"
-        track_info.album = (track['track']['album']['name'] if is_in_album else
-            track_info.title if config.metadata.tag_single_album else '')
-        track_info.album_artists = album_artists if track_info.album else []
-        track_info.year = track['track']['album']['release_date'].split('-')[0]
-        track_info.number = track['track']['track_number']
-        track_info.genre = config.metadata.default_genre
-        track_info.artwork_url = ''
-        track_info.download_url = ''
-        track_info.category = 'Buy'
-
-        # Add to buy downloads
-        playlist_info.buy_downloads.append(track_info)
-
-    return playlist_info
-
-#--------------------------------------------------------------------
-# MAIN
-#--------------------------------------------------------------------
-
-def extract_playlist_info(config: Config, playlist_url: str):
-    """ Extracts the info of tracks in a playlist """
-    website_name = extract_website_name(playlist_url)
-    if website_name == 'soundcloud':
-        return extract_soundcloud_playlist_info(config, playlist_url)
-    elif website_name == 'spotify':
-        return extract_spotify_playlist_info(config, playlist_url)
-    else:
-        print(f"ERROR: Invalid playlist URL")
-        return PlaylistInfo()
 
 def download_direct_downloads(config: Config, track_infos: list[TrackInfo]):
     """ Downloads tracks that have a direct download link
