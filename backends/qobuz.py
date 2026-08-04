@@ -31,40 +31,34 @@ class QobuzBackend(DownloadBackend):
             lucky_type="track"
         )
 
-        app_id, secrets = self._resolve_app_credentials()
+        # The app credentials always come from the config, a user auth token is
+        # only accepted by the app it was issued for so the ones advertised by
+        # the Qobuz website would be rejected
+        app_id = str(self.config.qobuz.app_id)
 
         try:
             self.qobuz.initialize_client(
                 str(self.config.qobuz.user_id),
                 str(self.config.qobuz.token),
                 app_id,
-                secrets # Must stay a list, each secret is probed individually
+                # Must stay a list, each secret is probed individually
+                [str(self.config.qobuz.app_secret)]
             )
         except AuthenticationError:
             # Qobuz rejects a valid token the same way as an invalid one when it
             # was issued for another app, so point at both possible causes
-            raise AuthenticationError(
-                f"Invalid credentials. Make sure the token was issued for app ID {app_id}."
+            raise BackendError(
+                f"Qobuz rejected the credentials. Make sure the token was issued for app ID {app_id}."
             )
-
-    def _resolve_app_credentials(self):
-        """ Returns the app ID and secrets to authenticate with
-            A user auth token is only accepted by the app it was issued for, so
-            the scraped app credentials can't be used with a configured token
-        """
-        if self.config.qobuz.app_id and self.config.qobuz.app_secret:
-            return str(self.config.qobuz.app_id), [str(self.config.qobuz.app_secret)]
-
-        if self.config.qobuz.user_id and self.config.qobuz.token:
-            raise ValueError(
-                "Missing Qobuz app ID and secret. A user auth token is only valid under "
-                "the app ID it was issued for, so scraped app credentials are rejected."
-            )
-
-        self.qobuz.get_tokens() # Get 'app_id' and 'secrets' attributes
-        return str(self.qobuz.app_id), self.qobuz.secrets
+        except Exception as e:
+            raise BackendError(f"Could not connect to Qobuz: {format_error(e)}")
 
     def download_query(self, query: str):
-        # Returns None when the query is too short or the type is invalid
-        if not self.qobuz.lucky_mode(query):
+        try:
+            # Returns None when the query is too short or the type is invalid
+            found = self.qobuz.lucky_mode(query)
+        except Exception as e:
+            raise BackendError(f"Qobuz download failed: {format_error(e)}")
+
+        if not found:
             logger.warning(f"Track not found in Qobuz using '{query}'")
