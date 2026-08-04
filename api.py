@@ -247,7 +247,8 @@ def qobuz_download(config: Config, queries):
     skipped_tracks = []
     for idx, query in enumerate(queries):
         try:
-            if len(qobuz.lucky_mode(query)) == 0:
+            # Returns None when the query is too short or the type is invalid
+            if not qobuz.lucky_mode(query):
                 skipped_tracks.append(idx)
         except Exception as e:
             print(f"WARNING: {e.message}")
