@@ -382,7 +382,13 @@ def extract_spotify_playlist_info(config: Config, playlist_url: str):
         client_secret=config.spotify.client_secret
     ))
 
-    playlist = spotify.playlist_tracks(playlist_id)['items']
+    # Collect every page, a single response holds 100 tracks at most
+    playlist = []
+    page = spotify.playlist_tracks(playlist_id)
+    while page:
+        playlist.extend(page['items'])
+        page = spotify.next(page) if page['next'] else None
+
     playlist_info = PlaylistInfo()
     for track in playlist:
         # Check if the track is part of an album (not in a compilation nor a single)
