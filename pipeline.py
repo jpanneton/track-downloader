@@ -7,6 +7,7 @@ from selenium.webdriver.chrome.options import Options as ChromeOptions
 from backends import create_backend
 
 from config import Config
+from errors import BackendError, format_error
 from models import PlaylistInfo, TrackInfo
 from sources import extract_playlist_info
 from tagging import process_file
@@ -38,25 +39,28 @@ def download_web_downloads(config: Config, track_infos: list[TrackInfo], web_dri
     for track_info in track_infos:
         logger.info(f'* {track_info.name}')
 
-        if web_driver:
-            # Open a page with the download gate
-            web_driver.get(track_info.download_url)
+        try:
+            if web_driver:
+                # Open a page with the download gate
+                web_driver.get(track_info.download_url)
 
-            # Prompt the user to continue after downloading
-            prompt(f"Download '{track_info.name}' in the browser.")
-        else:
-            # Prompt the user to continue after downloading
-            prompt(f"Download '{track_info.name}' manually and move it to the downloads folder.")
+                # Prompt the user to continue after downloading
+                prompt(f"Download '{track_info.name}' in the browser.")
+            else:
+                # Prompt the user to continue after downloading
+                prompt(f"Download '{track_info.name}' manually and move it to the downloads folder.")
 
-        # Process the file
-        filenames = list_downloaded_files(config, ignored_files)
-        if len(filenames) == 1:
-            process_file(config, track_info, filenames[0])
-        elif len(filenames) == 0:
-            logger.warning("Track hasn't been downloaded by the user")
-        else:
-            logger.error("Found more than one file in downloads folder")
-            return
+            # Process the file
+            filenames = list_downloaded_files(config, ignored_files)
+            if len(filenames) == 1:
+                process_file(config, track_info, filenames[0])
+            elif len(filenames) == 0:
+                logger.warning("Track hasn't been downloaded by the user")
+            else:
+                logger.error(f"Found {len(filenames)} files in the downloads folder, expected one")
+        except Exception as e:
+            # One failing track shouldn't abandon the rest of the playlist
+            logger.error(f"FAILED: {track_info.name}: {format_error(e)}")
 
 def download_buy_downloads(config: Config, track_infos: list[TrackInfo], ignored_files=()):
     """ Downloads tracks that are available for purchase """
@@ -66,17 +70,21 @@ def download_buy_downloads(config: Config, track_infos: list[TrackInfo], ignored
     for track_info in track_infos:
         logger.info(f'* {track_info.name}')
 
-        # Each query is downloaded on its own so the files it produced are known
-        query = f'{track_info.artists[0]} {track_info.title}'
-        filenames = backend.download(query)
+        try:
+            # Each query is downloaded on its own so the files it produced are known
+            query = f'{track_info.artists[0]} {track_info.title}'
+            filenames = backend.download(query)
 
-        if not filenames:
-            logger.info(f"SKIPPED: {track_info.artists[0]} - {track_info.title}")
-            continue
+            if not filenames:
+                logger.info(f"SKIPPED: {track_info.name}")
+                continue
 
-        # Process the files
-        for filename in filenames:
-            process_file(config, track_info, filename)
+            # Process the files
+            for filename in filenames:
+                process_file(config, track_info, filename)
+        except Exception as e:
+            # One failing track shouldn't abandon the rest of the playlist
+            logger.error(f"FAILED: {track_info.name}: {format_error(e)}")
 
 def download_all_tracks(config: Config, playlist_info: PlaylistInfo, web_driver, ignored_files=(), prompt=console_prompt):
     """ Downloads every tracks """
@@ -118,23 +126,19 @@ def download_playlist(config: Config, playlist_info: PlaylistInfo, prompt=consol
 
             # Initialize the WebDriver
             web_driver = ChromeDriver(options=chrome_options)
+        except Exception as e:
+            raise BackendError(f"Could not start the browser: {format_error(e)}")
 
+        try:
             # Process track infos
             download_all_tracks(config, playlist_info, web_driver, ignored_files, prompt)
-
-        except Exception as e:
-            logger.error(e)
-
         finally:
             # Close the browser, it may have failed to start
             if web_driver:
                 web_driver.quit()
     else:
-        try:
-            # Process track infos
-            download_all_tracks(config, playlist_info, None, ignored_files, prompt)
-        except Exception as e:
-            logger.error(e)
+        # Process track infos
+        download_all_tracks(config, playlist_info, None, ignored_files, prompt)
 
 def download_playlist_cli(config: Config, playlist_url: str):
     """ Downloads a playlist (console version) """
