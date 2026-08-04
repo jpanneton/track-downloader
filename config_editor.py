@@ -7,7 +7,7 @@ from typing import get_origin, get_type_hints
 import tkinter as tk
 from tkinter import ttk, font, messagebox
 
-from api import deezer_download, qobuz_download
+from backends import BACKENDS, create_backend
 
 from config import Config
 
@@ -75,20 +75,14 @@ class ConfigEditor:
         # Input field
         if label_text == "backend":
             # Use combobox for backend instead of entry
-            combo = ttk.Combobox(frame, textvariable=var, values=["deezer", "qobuz"], state="readonly")
+            combo = ttk.Combobox(frame, textvariable=var, values=list(BACKENDS), state="readonly")
             combo.pack(side='left', fill='x', expand=True, padx=(0, 5))
 
             def on_test_backend():
-                backend = var.get()
-                downloads = { "deezer": deezer_download, "qobuz": qobuz_download }.get(backend)
-                if not downloads:
-                    messagebox.showerror("Error", f"Unknown backend '{backend}'")
-                    return
-
                 try:
-                    # An empty query list only authenticates the backend
-                    downloads(self.generate_config(), [])
-                    messagebox.showinfo("Success", f"Connected to {backend.capitalize()}!")
+                    backend = create_backend(self.generate_config())
+                    backend.connect()
+                    messagebox.showinfo("Success", f"Connected to {backend.name.capitalize()}!")
                 except Exception as e:
                     # Report the real cause, credentials are only one of them
                     messagebox.showerror("Error", format_error(e))
