@@ -66,7 +66,8 @@ class Config:
         toml_path = 'config/config.toml'
         try:
             text = Path(toml_path).read_text(encoding='utf-8')
-            doc = parse_toml(text)
+            # Unwrap to plain values, tomlkit containers can't be copied back out
+            doc = parse_toml(text).unwrap()
 
             downloads = DownloadsConfig(**doc['downloads'])
             metadata = MetadataConfig(**doc['metadata'])
