@@ -656,7 +656,7 @@ def download_buy_downloads(config: Config, track_infos: list[TrackInfo]):
     elif config.downloads.backend == 'qobuz':
         skipped_tracks = qobuz_download(config, queries)
     else:
-        print("ERROR: Invalid download backend '{config.downloads.backend}'")
+        print(f"ERROR: Invalid download backend '{config.downloads.backend}'")
         return
 
     # Remove skipped tracks from track infos
