@@ -1,12 +1,8 @@
-from api import (
-    PlaylistInfo,
-    TrackInfo,
-    download_playlist,
-    extract_playlist_info
-)
-
 from config import Config
 from config_editor import ConfigEditor
+from models import PlaylistInfo, TrackInfo
+from pipeline import download_playlist
+from sources import extract_playlist_info
 
 import tkinter as tk
 from tkinter import messagebox, ttk

@@ -1,7 +1,7 @@
 import argparse
 
 from config import Config
-from api import download_playlist_cli
+from pipeline import download_playlist_cli
 from gui import download_playlist_gui
 
 def main():
