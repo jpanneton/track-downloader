@@ -526,6 +526,8 @@ def process_flac(config: Config, track_info: TrackInfo, filename):
     audiofile['artist'] = config.metadata.artist_delimiter.join(track_info.artists)
     audiofile['album'] = track_info.album
     audiofile['albumartist'] = config.metadata.artist_delimiter.join(track_info.album_artists)
+    # DATE is the standard Vorbis comment, YEAR is kept for players that only read it
+    audiofile['date'] = track_info.year
     audiofile['year'] = track_info.year
     audiofile['genre'] = track_info.genre
     audiofile['tracknumber'] = str(track_info.number)
