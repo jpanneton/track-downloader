@@ -64,30 +64,42 @@ def is_file_downloaded(config: Config, filename):
     """ Checks if a file has been properly downloaded in the downloads folder """
     return os.path.isfile(os.path.join(config.downloads.root_folder, filename))
 
-def flatten_folder(folder_path):
-    """ Moves every audio file from sub-folders up to the root folder
+def list_subfolders(folder_path):
+    """ Lists the sub-folders sitting directly in a folder """
+    if not os.path.exists(folder_path):
+        return []
+
+    return [
+        name for name in os.listdir(folder_path)
+        if os.path.isdir(os.path.join(folder_path, name))
+    ]
+
+def flatten_subfolders(folder_path, subfolder_names):
+    """ Moves every audio file from the given sub-folders up to the root folder
         Backends such as Qobuz group tracks in a release sub-folder along with
         extra files (cover art, booklet, playlist) that must not be processed
-    """
-    if not os.path.exists(folder_path):
-        return
 
-    for root, _, filenames in os.walk(folder_path, topdown=False):
-        if root == folder_path:
+        Only the given sub-folders are touched, the exported flac/mp3/wav
+        folders live in the same root and must be left alone
+    """
+    for subfolder_name in subfolder_names:
+        subfolder_path = os.path.join(folder_path, subfolder_name)
+        if not os.path.isdir(subfolder_path):
             continue
 
-        for filename in filenames:
-            source_path = os.path.join(root, filename)
+        for root, _, filenames in os.walk(subfolder_path, topdown=False):
+            for filename in filenames:
+                source_path = os.path.join(root, filename)
 
-            # Discard anything that isn't an audio file
-            if not filename.lower().endswith(SUPPORTED_AUDIO_EXTENSIONS):
-                os.remove(source_path)
-                continue
+                # Discard anything that isn't an audio file
+                if not filename.lower().endswith(SUPPORTED_AUDIO_EXTENSIONS):
+                    os.remove(source_path)
+                    continue
 
-            shutil.move(source_path, resolve_collision(folder_path, filename))
+                shutil.move(source_path, resolve_collision(folder_path, filename))
 
-        # Remove the sub-folder now that it has been emptied
-        os.rmdir(root)
+            # Remove the sub-folder now that it has been emptied
+            os.rmdir(root)
 
 #--------------------------------------------------------------------
 # STRING HELPERS

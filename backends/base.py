@@ -3,7 +3,7 @@ import os
 from abc import ABC, abstractmethod
 
 from config import Config
-from utils import SUPPORTED_AUDIO_EXTENSIONS, flatten_folder
+from utils import SUPPORTED_AUDIO_EXTENSIONS, flatten_subfolders, list_subfolders
 
 def list_audio_files(folder_path):
     """ Lists the audio files sitting directly in a folder """
@@ -39,11 +39,14 @@ class DownloadBackend(ABC):
             with a file that another query downloaded
         """
         root_folder = self.config.downloads.root_folder
-        before = set(list_audio_files(root_folder))
+        previous_files = set(list_audio_files(root_folder))
+        previous_subfolders = set(list_subfolders(root_folder))
 
         self.download_query(query)
 
-        # Backends may group a track in a release sub-folder
-        flatten_folder(root_folder)
+        # Backends may group a track in a release sub-folder, only the ones
+        # created by this download are flattened
+        new_subfolders = set(list_subfolders(root_folder)) - previous_subfolders
+        flatten_subfolders(root_folder, new_subfolders)
 
-        return sorted(set(list_audio_files(root_folder)) - before)
+        return sorted(set(list_audio_files(root_folder)) - previous_files)
