@@ -30,6 +30,12 @@ from urllib.parse import urlparse
 from config import Config
 
 #--------------------------------------------------------------------
+# CONSTANTS
+#--------------------------------------------------------------------
+
+SUPPORTED_AUDIO_EXTENSIONS = ('.flac', '.mp3', '.wav')
+
+#--------------------------------------------------------------------
 # TYPES
 #--------------------------------------------------------------------
 
@@ -108,6 +114,39 @@ def download_file(url, dest_path):
 def is_file_downloaded(config: Config, filename):
     """ Checks if a file has been properly downloaded in the downloads folder """
     return os.path.isfile(os.path.join(config.downloads.root_folder, filename))
+
+def flatten_folder(folder_path):
+    """ Moves every audio file from sub-folders up to the root folder
+        Backends such as Qobuz group tracks in a release sub-folder along with
+        extra files (cover art, booklet, playlist) that must not be processed
+    """
+    if not os.path.exists(folder_path):
+        return
+
+    for root, _, filenames in os.walk(folder_path, topdown=False):
+        if root == folder_path:
+            continue
+
+        for filename in filenames:
+            source_path = os.path.join(root, filename)
+
+            # Discard anything that isn't an audio file
+            if not filename.lower().endswith(SUPPORTED_AUDIO_EXTENSIONS):
+                os.remove(source_path)
+                continue
+
+            # Avoid overwriting a file that was already moved up
+            name, extension = os.path.splitext(filename)
+            destination_path = os.path.join(folder_path, filename)
+            duplicate_index = 1
+            while os.path.exists(destination_path):
+                destination_path = os.path.join(folder_path, f'{name} ({duplicate_index}){extension}')
+                duplicate_index += 1
+
+            shutil.move(source_path, destination_path)
+
+        # Remove the sub-folder now that it has been emptied
+        os.rmdir(root)
 
 #--------------------------------------------------------------------
 # STRING HELPERS
@@ -254,6 +293,10 @@ def qobuz_download(config: Config, queries):
             print(f"WARNING: {e}")
             skipped_tracks.append(idx)
             continue
+
+    # Qobuz groups each track in a release sub-folder
+    flatten_folder(config.downloads.root_folder)
+
     return skipped_tracks
 
 #--------------------------------------------------------------------
