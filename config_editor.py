@@ -1,4 +1,5 @@
 import ast
+import re
 
 from dataclasses import fields, is_dataclass
 
@@ -8,6 +9,16 @@ from tkinter import ttk, font, messagebox
 from api import deezer_download, qobuz_download
 
 from config import Config
+
+# Formats an exception into a message suitable for a dialog
+def format_error(error: Exception):
+    # Backend libraries decorate their messages with terminal color codes
+    message = re.sub(r'\x1b\[[0-9;]*m', '', str(error)).strip()
+
+    # Keep the cause only, the remaining lines are command line instructions
+    message = message.splitlines()[0].strip() if message else ''
+
+    return message or type(error).__name__
 
 # Generates a Config instance based on the state of the controls
 def generate_config_from_dict(cls, widget_dict):
@@ -60,18 +71,18 @@ class ConfigEditor:
 
             def on_test_backend():
                 backend = var.get()
-                if backend == "deezer":
-                    try:
-                        deezer_download(self.generate_config(), [])
-                        messagebox.showinfo("Success", "Valid Deezer ARL!")
-                    except:
-                        messagebox.showerror("Error", "Invalid Deezer ARL")
-                elif backend == "qobuz":
-                    try:
-                        qobuz_download(self.generate_config(), [])
-                        messagebox.showinfo("Success", "Valid Qobuz user ID and token!")
-                    except:
-                        messagebox.showerror("Error", "Invalid Qobuz user ID or token")
+                downloads = { "deezer": deezer_download, "qobuz": qobuz_download }.get(backend)
+                if not downloads:
+                    messagebox.showerror("Error", f"Unknown backend '{backend}'")
+                    return
+
+                try:
+                    # An empty query list only authenticates the backend
+                    downloads(self.generate_config(), [])
+                    messagebox.showinfo("Success", f"Connected to {backend.capitalize()}!")
+                except Exception as e:
+                    # Report the real cause, credentials are only one of them
+                    messagebox.showerror("Error", format_error(e))
 
             # Add test button
             test_button = ttk.Button(frame, text="Test", command=on_test_backend)
