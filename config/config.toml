@@ -32,24 +32,4 @@ supported_download_gates = ["hypeddit", "toneden"]
 # Use an interactive browser instance to download from gates (experimental)
 use_web_driver = false
 
-[spotify]
-# Client ID of the registered Spotify application
-client_id = ""
-# Client secret of the registered Spotify application
-client_secret = ""
-# Redirect URI used by Spotify OAuth
-redirect_url = "https://localhost:8888/callback"
-
-[deezer]
-# Premium Deezer ARL (required)
-# See https://rentry.org/firehawk52#deezer-arls
-deezer_arl = ""
-
-[qobuz]
-# Qobuz user ID and auth token
-user_id = ""
-token = ""
-# App ID and secret the auth token was issued for (required)
-# A token is rejected under any other app ID
-app_id = ""
-app_secret = ""
+# Credentials live in 'secrets.toml' (see secrets.toml.example)

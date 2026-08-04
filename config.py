@@ -5,9 +5,15 @@ import re
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime
 from pathlib import Path
-from tomlkit.api import dumps as dumps_toml, parse as parse_toml
+from tomlkit.api import dumps as dumps_toml, parse as parse_toml, table as toml_table
 
 logger = logging.getLogger(__name__)
+
+CONFIG_PATH = 'config/config.toml'
+
+# Credentials live in their own file so the shared config can stay in git
+SECRETS_PATH = 'config/secrets.toml'
+SECRET_SECTIONS = ('spotify', 'deezer', 'qobuz')
 
 @dataclass(slots=True)
 class DownloadsConfig:
@@ -34,18 +40,18 @@ class SoundcloudConfig:
 
 @dataclass(slots=True)
 class SpotifyConfig:
-    client_id: str
-    client_secret: str
-    redirect_url: str
+    client_id: str = ''
+    client_secret: str = ''
+    redirect_url: str = ''
 
 @dataclass(slots=True)
 class DeezerConfig:
-    deezer_arl: str
+    deezer_arl: str = ''
 
 @dataclass(slots=True)
 class QobuzConfig:
-    user_id: str
-    token: str
+    user_id: str = ''
+    token: str = ''
     # A user auth token is only valid under the app it was issued for, so the
     # app credentials must match the ones used to obtain the token
     app_id: str = ''
@@ -63,18 +69,27 @@ class Config:
     @classmethod
     def load(cls):
         # Load TOML doc
-        toml_path = 'config/config.toml'
+        toml_path = CONFIG_PATH
         try:
             text = Path(toml_path).read_text(encoding='utf-8')
             # Unwrap to plain values, tomlkit containers can't be copied back out
             doc = parse_toml(text).unwrap()
 
+            # Credentials override the ones left in the shared config
+            secrets_path = Path(SECRETS_PATH)
+            if secrets_path.exists():
+                secrets_doc = parse_toml(secrets_path.read_text(encoding='utf-8')).unwrap()
+                for section in SECRET_SECTIONS:
+                    if section in secrets_doc:
+                        doc[section] = secrets_doc[section]
+
             downloads = DownloadsConfig(**doc['downloads'])
             metadata = MetadataConfig(**doc['metadata'])
             soundcloud = SoundcloudConfig(**doc['soundcloud'])
-            spotify = SpotifyConfig(**doc['spotify'])
-            deezer = DeezerConfig(**doc['deezer'])
-            qobuz = QobuzConfig(**doc['qobuz'])
+            # Credential sections only live in the secrets file on a fresh clone
+            spotify = SpotifyConfig(**doc.get('spotify', {}))
+            deezer = DeezerConfig(**doc.get('deezer', {}))
+            qobuz = QobuzConfig(**doc.get('qobuz', {}))
 
             # Get today's date
             current_date = datetime.now().strftime('%Y-%m-%d')
@@ -112,6 +127,9 @@ class Config:
         def update_section(section, updates):
             for key, value in updates.items():
                 if isinstance(value, dict):
+                    # The section is missing when writing a fresh secrets file
+                    if key not in section:
+                        section[key] = toml_table()
                     update_section(section[key], value)
                 else:
                     section[key] = value
@@ -129,7 +147,7 @@ class Config:
 
         try:
             # Load original TOML doc to preserve comments
-            toml_path = 'config/config.toml'
+            toml_path = CONFIG_PATH
             text = Path(toml_path).read_text(encoding='utf-8')
             doc = parse_toml(text)
 
@@ -143,11 +161,27 @@ class Config:
             config_dict["downloads"]["mp3_folder"] = extract_leaf_folder(self.downloads.mp3_folder, root_folder)
             config_dict["downloads"]["wav_folder"] = extract_leaf_folder(self.downloads.wav_folder, root_folder)
 
-            # Update TOML doc manually from dict
+            # Split the credentials out of the shared config
+            secrets_dict = {
+                section: config_dict.pop(section)
+                for section in SECRET_SECTIONS
+                if section in config_dict
+            }
+
+            # Update TOML docs manually from dicts
             update_section(doc, config_dict)
+
+            # Drop credentials left over from an older config file
+            for section in SECRET_SECTIONS:
+                doc.pop(section, None)
+
+            secrets_path = Path(SECRETS_PATH)
+            secrets_doc = parse_toml(secrets_path.read_text(encoding='utf-8')) if secrets_path.exists() else parse_toml('')
+            update_section(secrets_doc, secrets_dict)
 
             # Save config
             Path(toml_path).write_text(dumps_toml(doc), encoding='utf-8')
+            secrets_path.write_text(dumps_toml(secrets_doc), encoding='utf-8')
         except FileNotFoundError:
             logger.error(f"Config file not found: {toml_path}")
         except Exception as e:
