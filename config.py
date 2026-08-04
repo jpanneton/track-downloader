@@ -58,9 +58,9 @@ class Config:
 
     @classmethod
     def load(cls):
+        # Load TOML doc
+        toml_path = 'config/config.toml'
         try:
-            # Load TOML doc
-            toml_path = 'config/config.toml'
             text = Path(toml_path).read_text(encoding='utf-8')
             doc = parse_toml(text)
 
@@ -89,9 +89,9 @@ class Config:
                 qobuz=qobuz
             )
         except FileNotFoundError:
-            print(f"ERROR: Config file not found: {toml_path}")
+            raise FileNotFoundError(f"Config file not found: {toml_path}")
         except Exception as e:
-            print(f"ERROR: Unexpected error loading config: {e}")
+            raise ValueError(f"Invalid config file {toml_path}: {e}")
 
     def save(self):
         def dataclass_to_dict(instance):

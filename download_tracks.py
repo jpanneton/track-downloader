@@ -12,13 +12,14 @@ def main():
     # Load config
     try:
         config = Config.load()
-        if args.gui:
-            download_playlist_gui(config, config.downloads.playlist_url)
-        else:
-            download_playlist_cli(config, config.downloads.playlist_url)
-                
-    except FileNotFoundError:
-        print("No config file found")
+    except (FileNotFoundError, ValueError) as e:
+        print(f"ERROR: {e}")
+        return
+
+    if args.gui:
+        download_playlist_gui(config, config.downloads.playlist_url)
+    else:
+        download_playlist_cli(config, config.downloads.playlist_url)
 
 if __name__ == "__main__":
     main()
