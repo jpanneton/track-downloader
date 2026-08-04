@@ -251,7 +251,7 @@ def qobuz_download(config: Config, queries):
             if not qobuz.lucky_mode(query):
                 skipped_tracks.append(idx)
         except Exception as e:
-            print(f"WARNING: {e.message}")
+            print(f"WARNING: {e}")
             skipped_tracks.append(idx)
             continue
     return skipped_tracks
