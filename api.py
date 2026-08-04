@@ -659,7 +659,11 @@ def download_direct_downloads(config: Config, track_infos: list[TrackInfo]):
         # Process the file
         process_file(config, track_info, filename)
 
-def download_web_downloads(config: Config, track_infos: list[TrackInfo], web_driver, ignored_files=()):
+def console_prompt(message):
+    """ Waits for the user to acknowledge a message in the console """
+    input(f"{message} Press Enter to continue...")
+
+def download_web_downloads(config: Config, track_infos: list[TrackInfo], web_driver, ignored_files=(), prompt=console_prompt):
     """ Downloads tracks that require user action (direct download, download gate, etc.) """
     for track_info in track_infos:
         print(f'* {track_info.name}')
@@ -669,10 +673,10 @@ def download_web_downloads(config: Config, track_infos: list[TrackInfo], web_dri
             web_driver.get(track_info.download_url)
 
             # Prompt the user to continue after downloading
-            input("Download track then press Enter to continue...")
+            prompt(f"Download '{track_info.name}' in the browser.")
         else:
             # Prompt the user to continue after downloading
-            input("Download track manually, move it to 'downloads' folder then press Enter to continue...")
+            prompt(f"Download '{track_info.name}' manually and move it to the downloads folder.")
 
         # Process the file
         filenames = list_downloaded_files(config, ignored_files)
@@ -726,22 +730,25 @@ def download_buy_downloads(config: Config, track_infos: list[TrackInfo], ignored
         print("ERROR: File count mismatch in downloads folder")
         return
 
-def download_all_tracks(config: Config, playlist_info: PlaylistInfo, web_driver, ignored_files=()):
+def download_all_tracks(config: Config, playlist_info: PlaylistInfo, web_driver, ignored_files=(), prompt=console_prompt):
     """ Downloads every tracks """
     if playlist_info.gate_downloads:
         print("INFO: Downloading gate downloads...")
-        download_web_downloads(config, playlist_info.gate_downloads, web_driver, ignored_files)
+        download_web_downloads(config, playlist_info.gate_downloads, web_driver, ignored_files, prompt)
 
     if playlist_info.direct_downloads:
         print("INFO: Downloading direct downloads...")
-        download_web_downloads(config, playlist_info.direct_downloads, web_driver, ignored_files)
+        download_web_downloads(config, playlist_info.direct_downloads, web_driver, ignored_files, prompt)
 
     if playlist_info.buy_downloads:
         print("INFO: Downloading buy downloads...")
         download_buy_downloads(config, playlist_info.buy_downloads, ignored_files)
 
-def download_playlist(config: Config, playlist_info: PlaylistInfo):
-    """ Downloads a playlist """
+def download_playlist(config: Config, playlist_info: PlaylistInfo, prompt=console_prompt):
+    """ Downloads a playlist
+        'prompt' is how the user is asked to complete a manual download, the
+        console prompt is invisible when running from the GUI
+    """
     # Create root download folder if necessary
     os.makedirs(config.downloads.root_folder, exist_ok=True)
 
@@ -765,7 +772,7 @@ def download_playlist(config: Config, playlist_info: PlaylistInfo):
             web_driver = ChromeDriver(options=chrome_options)
 
             # Process track infos
-            download_all_tracks(config, playlist_info, web_driver, ignored_files)
+            download_all_tracks(config, playlist_info, web_driver, ignored_files, prompt)
 
         except Exception as e:
             print(e)
@@ -777,7 +784,7 @@ def download_playlist(config: Config, playlist_info: PlaylistInfo):
     else:
         try:
             # Process track infos
-            download_all_tracks(config, playlist_info, None, ignored_files)
+            download_all_tracks(config, playlist_info, None, ignored_files, prompt)
         except Exception as e:
             print(e)
 

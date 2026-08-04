@@ -9,7 +9,7 @@ from config import Config
 from config_editor import ConfigEditor
 
 import tkinter as tk
-from tkinter import ttk
+from tkinter import messagebox, ttk
 
 class EntryPopup(ttk.Entry):
     """ Text entry widget that gets displayed to edit TableView cells """
@@ -196,6 +196,10 @@ def download_playlist_gui(config: Config, playlist_url: str):
     playlist_info = PlaylistInfo()
 
     # ========== Callbacks ==========
+    def on_prompt(message):
+        # A console prompt would be invisible and freeze the window
+        messagebox.showinfo("Manual Download", f"{message}\n\nClick OK once done.")
+
     def on_load_playlist():
         nonlocal playlist_info
 
@@ -220,12 +224,12 @@ def download_playlist_gui(config: Config, playlist_url: str):
         selected_track_infos = [track_infos[tableview.index(row)] for row in tableview.selection()]
 
         # Download selected tracks
-        download_playlist(config, PlaylistInfo.from_flat_list(selected_track_infos))
+        download_playlist(config, PlaylistInfo.from_flat_list(selected_track_infos), on_prompt)
 
     def on_download_all():
         nonlocal playlist_info
         update_playlist_info(config, tableview, playlist_info)
-        download_playlist(config, playlist_info)
+        download_playlist(config, playlist_info, on_prompt)
 
     # ========== Download Buttons ==========
     download_buttons_frame = ttk.Frame(root)
