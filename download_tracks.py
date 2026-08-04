@@ -1,7 +1,9 @@
 import argparse
 import logging
+import sys
 
 from config import Config
+from errors import TrackDownloaderError
 from pipeline import download_playlist_cli
 from gui import download_playlist_gui
 
@@ -18,12 +20,26 @@ def main():
         config = Config.load()
     except (FileNotFoundError, ValueError) as e:
         logging.error(e)
-        return
+        return 1
 
-    if args.gui:
-        download_playlist_gui(config, config.downloads.playlist_url)
-    else:
-        download_playlist_cli(config, config.downloads.playlist_url)
+    try:
+        if args.gui:
+            download_playlist_gui(config, config.downloads.playlist_url)
+        else:
+            download_playlist_cli(config, config.downloads.playlist_url)
+    except TrackDownloaderError as e:
+        # Expected failure, the message is meant for the user
+        logging.error(e)
+        return 1
+    except KeyboardInterrupt:
+        logging.warning("Interrupted")
+        return 1
+    except Exception:
+        # Unexpected failure, the traceback is the useful part
+        logging.exception("Unexpected error")
+        return 1
+
+    return 0
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
