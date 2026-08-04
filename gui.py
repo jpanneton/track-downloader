@@ -127,7 +127,7 @@ def update_playlist_info(config: Config, tableview: TableView, playlist_info: Pl
         track_info.title = values[1]
         track_info.artists = values[2].split(config.metadata.artist_delimiter)
         track_info.album = values[3]
-        track_info.albumartists = values[4].split(config.metadata.artist_delimiter)
+        track_info.album_artists = values[4].split(config.metadata.artist_delimiter)
         track_info.year = values[5]
         track_info.number = values[6]
         track_info.genre = values[7]
