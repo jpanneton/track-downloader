@@ -1,35 +1,59 @@
 import logging
 
 from spotipy import Spotify
-from spotipy.oauth2 import SpotifyClientCredentials
+from spotipy.exceptions import SpotifyException
+from spotipy.oauth2 import SpotifyClientCredentials, SpotifyOauthError
 
-from config import Config
+from config import Config, require_settings
+from errors import ConfigurationError, PlaylistError, format_error
 from models import PlaylistInfo, TrackInfo
 from utils import extract_spotify_playlist_id, format_track_name
 
 logger = logging.getLogger(__name__)
+
+def create_spotify_client(config: Config):
+    """ Creates an authenticated Spotify client """
+    require_settings(
+        'Spotify',
+        client_id=config.spotify.client_id,
+        client_secret=config.spotify.client_secret
+    )
+
+    try:
+        # Server-to-server authentication (only works with public playlists)
+        return Spotify(client_credentials_manager=SpotifyClientCredentials(
+            client_id=config.spotify.client_id,
+            client_secret=config.spotify.client_secret
+        ))
+    except SpotifyOauthError as e:
+        raise ConfigurationError(f"Could not authenticate with Spotify: {format_error(e)}")
 
 def extract_spotify_playlist_info(config: Config, playlist_url: str):
     """ Extracts the info of tracks in a Spotify playlist """
     logger.info("Extracting Spotify playlist info...")
 
     playlist_id = extract_spotify_playlist_id(playlist_url)
-    if playlist_id == None:
-        logger.error("Invalid Spotify playlist")
-        return
+    if playlist_id is None:
+        raise PlaylistError(f"Not a valid Spotify playlist URL: {playlist_url}")
 
-    # Server-to-server authentication (only works with public playlists)
-    spotify = Spotify(client_credentials_manager=SpotifyClientCredentials(
-        client_id=config.spotify.client_id,
-        client_secret=config.spotify.client_secret
-    ))
+    spotify = create_spotify_client(config)
 
     # Collect every page, a single response holds 100 tracks at most
     playlist = []
-    page = spotify.playlist_tracks(playlist_id)
-    while page:
-        playlist.extend(page['items'])
-        page = spotify.next(page) if page['next'] else None
+    try:
+        page = spotify.playlist_tracks(playlist_id)
+        while page:
+            playlist.extend(page['items'])
+            page = spotify.next(page) if page['next'] else None
+    except SpotifyOauthError as e:
+        raise ConfigurationError(f"Spotify rejected the credentials: {format_error(e)}")
+    except SpotifyException as e:
+        # Spotify answers 404 for a playlist it won't show to these credentials,
+        # so a missing playlist and bad credentials look the same
+        raise PlaylistError(
+            f"Could not read the Spotify playlist (HTTP {e.http_status}). "
+            "Make sure it is public and the Spotify credentials are valid."
+        )
 
     playlist_info = PlaylistInfo()
     for track in playlist:

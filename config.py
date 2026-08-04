@@ -7,9 +7,23 @@ from datetime import datetime
 from pathlib import Path
 from tomlkit.api import dumps as dumps_toml, parse as parse_toml, table as toml_table
 
+from errors import ConfigurationError
+
 logger = logging.getLogger(__name__)
 
 CONFIG_PATH = 'config/config.toml'
+
+def require_settings(section: str, **settings):
+    """ Makes sure the given settings are filled in, raises otherwise
+        Reporting every missing setting at once avoids fixing them one by one
+    """
+    missing = [name for name, value in settings.items() if not str(value).strip()]
+    if missing:
+        is_single = len(missing) == 1
+        raise ConfigurationError(
+            f"Missing {section} {'setting' if is_single else 'settings'}: {', '.join(missing)}. "
+            f"Set {'it' if is_single else 'them'} in {SECRETS_PATH} or with the Config button."
+        )
 
 # Credentials live in their own file so the shared config can stay in git
 SECRETS_PATH = 'config/secrets.toml'
