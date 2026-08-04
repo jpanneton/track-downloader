@@ -67,6 +67,26 @@ class Config:
     qobuz: QobuzConfig
 
     @classmethod
+    def _migrate_secrets(cls, text):
+        """ Moves the credentials of an older config into the secrets file
+            Leaving them in the tracked config risks committing them
+        """
+        try:
+            secrets_doc = parse_toml('')
+            config_doc = parse_toml(text)
+
+            for section in SECRET_SECTIONS:
+                if section in config_doc:
+                    secrets_doc[section] = config_doc.pop(section)
+
+            Path(SECRETS_PATH).write_text(dumps_toml(secrets_doc), encoding='utf-8')
+            Path(CONFIG_PATH).write_text(dumps_toml(config_doc), encoding='utf-8')
+            logger.info(f"Moved credentials from {CONFIG_PATH} to {SECRETS_PATH}")
+        except Exception as e:
+            # The credentials were still read from the config, keep going
+            logger.warning(f"Could not move credentials to {SECRETS_PATH}: {e}")
+
+    @classmethod
     def load(cls):
         # Load TOML doc
         toml_path = CONFIG_PATH
@@ -82,6 +102,9 @@ class Config:
                 for section in SECRET_SECTIONS:
                     if section in secrets_doc:
                         doc[section] = secrets_doc[section]
+            elif any(section in doc for section in SECRET_SECTIONS):
+                # Config predating the split, move the credentials out of it
+                cls._migrate_secrets(text)
 
             downloads = DownloadsConfig(**doc['downloads'])
             metadata = MetadataConfig(**doc['metadata'])
