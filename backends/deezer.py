@@ -1,8 +1,12 @@
+import logging
+
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyClientCredentials
 
 from backends.base import DownloadBackend
 from deemix_client import DeemixClient
+
+logger = logging.getLogger(__name__)
 
 class DeezerBackend(DownloadBackend):
     """ Searches for tracks in Spotify and downloads them from Deezer """
@@ -26,7 +30,7 @@ class DeezerBackend(DownloadBackend):
         # Deezer is reached through a Spotify track URL
         results = self.spotify.search(q=query, type='track', limit=1)['tracks']['items']
         if not results:
-            print(f"WARNING: Track not found in Spotify using '{query}'")
+            logger.warning(f"Track not found in Spotify using '{query}'")
             return
 
         # Use first result (best match)

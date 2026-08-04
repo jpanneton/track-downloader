@@ -1,3 +1,5 @@
+import logging
+
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyClientCredentials
 
@@ -5,13 +7,15 @@ from config import Config
 from models import PlaylistInfo, TrackInfo
 from utils import extract_spotify_playlist_id, format_track_name
 
+logger = logging.getLogger(__name__)
+
 def extract_spotify_playlist_info(config: Config, playlist_url: str):
     """ Extracts the info of tracks in a Spotify playlist """
-    print("INFO: Extracting Spotify playlist info...")
+    logger.info("Extracting Spotify playlist info...")
 
     playlist_id = extract_spotify_playlist_id(playlist_url)
     if playlist_id == None:
-        print("ERROR: Invalid Spotify playlist")
+        logger.error("Invalid Spotify playlist")
         return
 
     # Server-to-server authentication (only works with public playlists)
@@ -31,7 +35,7 @@ def extract_spotify_playlist_info(config: Config, playlist_url: str):
     for track in playlist:
         # Local files and tracks unavailable in the market have no track data
         if not track.get('track') or track['track'].get('is_local'):
-            print("WARNING: Skipping unavailable track")
+            logger.warning("Skipping unavailable track")
             continue
 
         # Check if the track is part of an album (not in a compilation nor a single)

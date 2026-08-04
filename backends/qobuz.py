@@ -5,6 +5,8 @@ from qobuz_dl.exceptions import AuthenticationError
 
 from backends.base import DownloadBackend
 
+logger = logging.getLogger(__name__)
+
 class QobuzBackend(DownloadBackend):
     """ Searches for tracks in Qobuz and downloads them """
     name = 'qobuz'
@@ -55,4 +57,4 @@ class QobuzBackend(DownloadBackend):
     def download_query(self, query: str):
         # Returns None when the query is too short or the type is invalid
         if not self.qobuz.lucky_mode(query):
-            print(f"WARNING: Track not found in Qobuz using '{query}'")
+            logger.warning(f"Track not found in Qobuz using '{query}'")

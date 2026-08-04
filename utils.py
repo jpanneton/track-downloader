@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import requests
@@ -6,6 +7,8 @@ import shutil
 from urllib.parse import urlparse
 
 from config import Config
+
+logger = logging.getLogger(__name__)
 
 SUPPORTED_AUDIO_EXTENSIONS = ('.flac', '.mp3', '.wav')
 
@@ -58,7 +61,7 @@ def download_file(url, dest_path):
         with open(dest_path, 'wb') as handler:
             handler.write(response.content)
     else:
-        print(f"Failed to download {url}")
+        logger.info(f"Failed to download {url}")
 
 def is_file_downloaded(config: Config, filename):
     """ Checks if a file has been properly downloaded in the downloads folder """
@@ -148,7 +151,7 @@ def format_track_name(config: Config, name: str, remove_noise: bool):
 
     # Print changes
     if matches:
-        print(f"Removed {matches} from '{name}'")
+        logger.info(f"Removed {matches} from '{name}'")
 
     return result
 

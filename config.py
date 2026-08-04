@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 
@@ -5,6 +6,8 @@ from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime
 from pathlib import Path
 from tomlkit.api import dumps as dumps_toml, parse as parse_toml
+
+logger = logging.getLogger(__name__)
 
 @dataclass(slots=True)
 class DownloadsConfig:
@@ -145,6 +148,6 @@ class Config:
             # Save config
             Path(toml_path).write_text(dumps_toml(doc), encoding='utf-8')
         except FileNotFoundError:
-            print(f"ERROR: Config file not found: {toml_path}")
+            logger.error(f"Config file not found: {toml_path}")
         except Exception as e:
-            print(f"ERROR: Unexpected error saving config: {e}")
+            logger.error(f"Unexpected error saving config: {e}")

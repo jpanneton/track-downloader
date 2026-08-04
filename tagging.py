@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import shutil
@@ -16,6 +17,8 @@ from utils import (
     is_file_downloaded,
     quarantine_file
 )
+
+logger = logging.getLogger(__name__)
 
 def validate_file(config: Config, track_info: TrackInfo, track_metadata, filename):
     def extract_before_delimiter(s: str):
@@ -71,7 +74,7 @@ def process_flac(config: Config, track_info: TrackInfo, filename):
     audiofile = MutagenFLAC(source_path)
     if not validate_file(config, track_info, audiofile, filename):
         quarantine_file(config, source_path)
-        print(f"WARNING: {track_info.name} did not match, moved to '{REJECTED_FOLDER_NAME}'")
+        logger.warning(f"{track_info.name} did not match, moved to '{REJECTED_FOLDER_NAME}'")
         return
 
     audiofile['title'] = track_info.title
@@ -89,9 +92,9 @@ def process_flac(config: Config, track_info: TrackInfo, filename):
     bitrate = audiofile.info.bitrate // 1000
 
     if track_info.category == 'Buy' and not config.downloads.lossless:
-        print(f"WARNING: {filename} is in flac format (expected mp3)")
+        logger.warning(f"{filename} is in flac format (expected mp3)")
     if bitrate <= 320:
-        print(f"WARNING: {filename} has a bitrate of {bitrate} kbps (expected > 320)")
+        logger.warning(f"{filename} has a bitrate of {bitrate} kbps (expected > 320)")
 
     # Move FLAC from downloads folder
     shutil.move(source_path, destination_path)
@@ -111,7 +114,7 @@ def process_mp3(config: Config, track_info: TrackInfo, filename):
     audiofile = MutagenMP3(source_path, ID3=EasyID3)
     if not validate_file(config, track_info, audiofile, filename):
         quarantine_file(config, source_path)
-        print(f"WARNING: {track_info.name} did not match, moved to '{REJECTED_FOLDER_NAME}'")
+        logger.warning(f"{track_info.name} did not match, moved to '{REJECTED_FOLDER_NAME}'")
         return
 
     audiofile['title'] = track_info.title
@@ -127,9 +130,9 @@ def process_mp3(config: Config, track_info: TrackInfo, filename):
     bitrate = audiofile.info.bitrate // 1000
 
     if track_info.category == 'Buy' and config.downloads.lossless:
-        print(f"WARNING: {filename} is in mp3 format (expected flac)")
+        logger.warning(f"{filename} is in mp3 format (expected flac)")
     if bitrate != 320:
-        print(f"WARNING: {filename} has a bitrate of {bitrate} kbps (expected 320)")
+        logger.warning(f"{filename} has a bitrate of {bitrate} kbps (expected 320)")
 
     # Move MP3 from downloads folder
     shutil.move(source_path, destination_path)
@@ -194,4 +197,4 @@ def process_file(config: Config, track_info: TrackInfo, filename):
         elif filename.endswith('.wav'):
             process_wav(config, track_info, filename)
     else:
-        print(f"Missing file {filename}")
+        logger.info(f"Missing file {filename}")

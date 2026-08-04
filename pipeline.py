@@ -1,3 +1,4 @@
+import logging
 import os
 
 from selenium.webdriver import Chrome as ChromeDriver
@@ -10,6 +11,8 @@ from models import PlaylistInfo, TrackInfo
 from sources import extract_playlist_info
 from tagging import process_file
 from utils import download_file, list_downloaded_files
+
+logger = logging.getLogger(__name__)
 
 def download_direct_downloads(config: Config, track_infos: list[TrackInfo]):
     """ Downloads tracks that have a direct download link
@@ -50,9 +53,9 @@ def download_web_downloads(config: Config, track_infos: list[TrackInfo], web_dri
         if len(filenames) == 1:
             process_file(config, track_info, filenames[0])
         elif len(filenames) == 0:
-            print("SKIPPED: Track hasn't been downloaded by the user")
+            logger.warning("Track hasn't been downloaded by the user")
         else:
-            print("ERROR: Found more than one file in downloads folder")
+            logger.error("Found more than one file in downloads folder")
             return
 
 def download_buy_downloads(config: Config, track_infos: list[TrackInfo], ignored_files=()):
@@ -68,7 +71,7 @@ def download_buy_downloads(config: Config, track_infos: list[TrackInfo], ignored
         filenames = backend.download(query)
 
         if not filenames:
-            print(f"SKIPPED: {track_info.artists[0]} - {track_info.title}")
+            logger.info(f"SKIPPED: {track_info.artists[0]} - {track_info.title}")
             continue
 
         # Process the files
@@ -78,15 +81,15 @@ def download_buy_downloads(config: Config, track_infos: list[TrackInfo], ignored
 def download_all_tracks(config: Config, playlist_info: PlaylistInfo, web_driver, ignored_files=(), prompt=console_prompt):
     """ Downloads every tracks """
     if playlist_info.gate_downloads:
-        print("INFO: Downloading gate downloads...")
+        logger.info("Downloading gate downloads...")
         download_web_downloads(config, playlist_info.gate_downloads, web_driver, ignored_files, prompt)
 
     if playlist_info.direct_downloads:
-        print("INFO: Downloading direct downloads...")
+        logger.info("Downloading direct downloads...")
         download_web_downloads(config, playlist_info.direct_downloads, web_driver, ignored_files, prompt)
 
     if playlist_info.buy_downloads:
-        print("INFO: Downloading buy downloads...")
+        logger.info("Downloading buy downloads...")
         download_buy_downloads(config, playlist_info.buy_downloads, ignored_files)
 
 def download_playlist(config: Config, playlist_info: PlaylistInfo, prompt=console_prompt):
@@ -100,7 +103,7 @@ def download_playlist(config: Config, playlist_info: PlaylistInfo, prompt=consol
     # Leave files that were already there alone, they aren't part of this run
     ignored_files = list_downloaded_files(config)
     if ignored_files:
-        print(f"WARNING: Ignoring {len(ignored_files)} file(s) already in the downloads folder")
+        logger.warning(f"Ignoring {len(ignored_files)} file(s) already in the downloads folder")
 
     # Create web driver only if needed
     if config.soundcloud.use_web_driver and (playlist_info.gate_downloads or playlist_info.direct_downloads):

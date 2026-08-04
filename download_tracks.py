@@ -1,4 +1,5 @@
 import argparse
+import logging
 
 from config import Config
 from pipeline import download_playlist_cli
@@ -8,6 +9,9 @@ def main():
     parser = argparse.ArgumentParser("Playlist Downloader")
     parser.add_argument('--gui', '-g', action='store_true')
     args = parser.parse_args()
+
+    # Backend libraries log through the same handler
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
     # Load config
     try:

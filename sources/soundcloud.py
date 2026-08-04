@@ -1,3 +1,5 @@
+import logging
+
 from sclib import (
     SoundcloudAPI,
     Playlist as SoundcloudPlaylist
@@ -7,9 +9,11 @@ from config import Config
 from models import PlaylistInfo, TrackInfo
 from utils import format_track_name, is_download_gate
 
+logger = logging.getLogger(__name__)
+
 def extract_soundcloud_playlist_info(config: Config, playlist_url: str):
     """ Extracts the info of tracks in a SoundCloud playlist """
-    print("INFO: Extracting SoundCloud playlist info...")
+    logger.info("Extracting SoundCloud playlist info...")
 
     api = SoundcloudAPI()
     playlist = api.resolve(playlist_url)

@@ -1,3 +1,4 @@
+import logging
 import os
 import shutil
 
@@ -10,6 +11,8 @@ from deemix.plugins.spotify import Spotify
 
 from deezer import Deezer
 from deezer import TrackFormats
+
+logger = logging.getLogger(__name__)
 
 class DeemixClient:
     class LogListener:
@@ -57,7 +60,7 @@ class DeemixClient:
             try:
                 download_object = generateDownloadObject(self.deezer, url, bitrate, self.plugins, self.listener)
             except GenerationError as e:
-                print(f"WARNING: {e.message} ({e.link})")
+                logger.warning(f"{e.message} ({e.link})")
                 skipped_tracks.append(idx)
                 continue
             if isinstance(download_object, list):
