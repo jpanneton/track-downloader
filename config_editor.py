@@ -1,5 +1,4 @@
 import ast
-import re
 
 from dataclasses import fields, is_dataclass
 from typing import get_origin, get_type_hints
@@ -10,16 +9,7 @@ from tkinter import ttk, font, messagebox
 from backends import BACKENDS, create_backend
 
 from config import Config
-
-# Formats an exception into a message suitable for a dialog
-def format_error(error: Exception):
-    # Backend libraries decorate their messages with terminal color codes
-    message = re.sub(r'\x1b\[[0-9;]*m', '', str(error)).strip()
-
-    # Keep the cause only, the remaining lines are command line instructions
-    message = message.splitlines()[0].strip() if message else ''
-
-    return message or type(error).__name__
+from errors import format_error
 
 # Generates a Config instance based on the state of the controls
 def generate_config_from_dict(cls, widget_dict):
