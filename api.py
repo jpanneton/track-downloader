@@ -13,6 +13,7 @@ from mutagen.mp3 import MP3 as MutagenMP3
 from pydub import AudioSegment
 
 from qobuz_dl.core import QobuzDL
+from qobuz_dl.exceptions import AuthenticationError
 
 from sclib import (
     SoundcloudAPI,
@@ -275,12 +276,19 @@ def qobuz_download(config: Config, queries):
         app_id = str(qobuz.app_id)
         secrets = qobuz.secrets
 
-    qobuz.initialize_client(
-        str(config.qobuz.user_id),
-        str(config.qobuz.token),
-        app_id,
-        secrets # Must stay a list, each secret is probed individually
-    )
+    try:
+        qobuz.initialize_client(
+            str(config.qobuz.user_id),
+            str(config.qobuz.token),
+            app_id,
+            secrets # Must stay a list, each secret is probed individually
+        )
+    except AuthenticationError:
+        # Qobuz rejects a valid token the same way as an invalid one when it
+        # was issued for another app, so point at both possible causes
+        raise AuthenticationError(
+            f"Invalid credentials. Make sure the token was issued for app ID {app_id}."
+        )
 
     # Download tracks
     skipped_tracks = []
