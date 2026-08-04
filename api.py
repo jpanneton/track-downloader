@@ -221,12 +221,26 @@ def qobuz_download(config: Config, queries):
         embed_art=True,
         lucky_type="track"
     )
-    qobuz.get_tokens() # Get 'app_id' and 'secrets' attributes
+    # A user auth token is only accepted by the app it was issued for, so the
+    # scraped app credentials can't be used to log in with a configured token
+    if config.qobuz.app_id and config.qobuz.app_secret:
+        app_id = str(config.qobuz.app_id)
+        secrets = [str(config.qobuz.app_secret)]
+    elif config.qobuz.user_id and config.qobuz.token:
+        raise ValueError(
+            "Missing Qobuz app ID and secret. A user auth token is only valid under "
+            "the app ID it was issued for, so scraped app credentials are rejected."
+        )
+    else:
+        qobuz.get_tokens() # Get 'app_id' and 'secrets' attributes
+        app_id = str(qobuz.app_id)
+        secrets = qobuz.secrets
+
     qobuz.initialize_client(
         str(config.qobuz.user_id),
         str(config.qobuz.token),
-        str(qobuz.app_id),
-        qobuz.secrets # Must stay a list, each secret is probed individually
+        app_id,
+        secrets # Must stay a list, each secret is probed individually
     )
 
     # Download tracks
