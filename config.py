@@ -1,4 +1,5 @@
 import os
+import re
 
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime
@@ -115,7 +116,8 @@ class Config:
             try:
                 relative = os.path.relpath(full_path, root)
                 parts = relative.split(os.sep)
-                if len(parts) >= 2 and parts[0].count('-') == 2:
+                # Strip the dated folder inserted when loading the config
+                if len(parts) >= 2 and re.fullmatch(r'\d{4}-\d{2}-\d{2}', parts[0]):
                     return parts[1]
             except Exception:
                 pass
