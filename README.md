@@ -51,6 +51,10 @@ python download_tracks.py
 
 Note: the command line version doesn't support metadata editing.
 
+## Errors
+
+Missing or invalid settings are reported before anything is downloaded: the GUI shows a dialog naming what is missing, the command line logs it and exits with a non-zero code. A track that fails is logged and skipped, the rest of the playlist still downloads.
+
 ## Downloads
 
 Tracks are downloaded to `downloads/`, then tagged and moved to `downloads/YYYY-MM-DD/{flac,mp3,wav}`. A file whose tags don't match the expected track is moved to `downloads/_rejected/` instead of being deleted, so it can be inspected.
