@@ -2,6 +2,7 @@ import ast
 import re
 
 from dataclasses import fields, is_dataclass
+from typing import get_origin, get_type_hints
 
 import tkinter as tk
 from tkinter import ttk, font, messagebox
@@ -22,28 +23,36 @@ def format_error(error: Exception):
 
 # Generates a Config instance based on the state of the controls
 def generate_config_from_dict(cls, widget_dict):
+    # Annotations are stored as strings, resolve them to the actual types
+    hints = get_type_hints(cls)
+
     init_kwargs = {}
     for field in fields(cls):
         val = widget_dict[field.name]
+        field_type = hints[field.name]
+
         if isinstance(val, dict):
             # Read section
-            init_kwargs[field.name] = generate_config_from_dict(field.type, val)
+            init_kwargs[field.name] = generate_config_from_dict(field_type, val)
         else:
             # Read attribute
             raw_val = val.get()
 
-            # Try to parse list
-            try:
-                parsed_val = ast.literal_eval(raw_val)
-            except:
-                if field.type == bool:
-                    parsed_val = bool(raw_val)
-                elif field.type == int:
-                    parsed_val = int(raw_val)
-                elif field.type == float:
-                    parsed_val = float(raw_val)
-                else:
-                    parsed_val = raw_val
+            if field_type is bool:
+                parsed_val = bool(raw_val)
+            elif field_type is int:
+                parsed_val = int(raw_val)
+            elif field_type is float:
+                parsed_val = float(raw_val)
+            elif get_origin(field_type) is list:
+                # Lists are edited as their Python literal representation
+                try:
+                    parsed_val = list(ast.literal_eval(raw_val))
+                except (SyntaxError, ValueError):
+                    raise ValueError(f"Invalid list value for '{field.name}': {raw_val}")
+            else:
+                # Anything else is kept verbatim, parsing would alter it
+                parsed_val = raw_val
 
             init_kwargs[field.name] = parsed_val
     return cls(**init_kwargs)
