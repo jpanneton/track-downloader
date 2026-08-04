@@ -10,6 +10,7 @@ from backends import BACKENDS, create_backend
 
 from config import Config
 from errors import format_error
+from gui_utils import set_window_icon
 
 # Generates a Config instance based on the state of the controls
 def generate_config_from_dict(cls, widget_dict):
@@ -132,7 +133,7 @@ class ConfigEditor:
         self.window = tk.Toplevel(root)
         self.window.title("Config Editor")
         self.window.resizable(False, False)
-        self.window.iconbitmap("icon.ico")
+        set_window_icon(self.window)
 
         self.dict = self.build_form(self.window, self.config)
 
@@ -140,7 +141,12 @@ class ConfigEditor:
             self.close()
 
         def on_save():
-            config = self.generate_config()
+            try:
+                config = self.generate_config()
+            except Exception as e:
+                # A malformed value would otherwise discard every other edit
+                messagebox.showerror("Invalid Value", format_error(e))
+                return
 
             # Mutate the original config in place
             self.config.downloads = config.downloads
@@ -151,7 +157,11 @@ class ConfigEditor:
             self.config.qobuz = config.qobuz
 
             # Update config file
-            self.config.save()
+            try:
+                self.config.save()
+            except Exception as e:
+                messagebox.showerror("Save Config", format_error(e))
+                return
 
             # Close window
             self.close()

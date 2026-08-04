@@ -220,6 +220,6 @@ class Config:
             Path(toml_path).write_text(dumps_toml(doc), encoding='utf-8')
             secrets_path.write_text(dumps_toml(secrets_doc), encoding='utf-8')
         except FileNotFoundError:
-            logger.error(f"Config file not found: {toml_path}")
+            raise ConfigurationError(f"Config file not found: {toml_path}")
         except Exception as e:
-            logger.error(f"Unexpected error saving config: {e}")
+            raise ConfigurationError(f"Could not save the config: {e}")

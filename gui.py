@@ -1,11 +1,16 @@
+import logging
+
 from config import Config
 from config_editor import ConfigEditor
+from gui_utils import report_errors, set_window_icon
 from models import PlaylistInfo, TrackInfo
 from pipeline import download_playlist
 from sources import extract_playlist_info
 
 import tkinter as tk
 from tkinter import messagebox, ttk
+
+logger = logging.getLogger(__name__)
 
 class EntryPopup(ttk.Entry):
     """ Text entry widget that gets displayed to edit TableView cells """
@@ -136,7 +141,7 @@ def download_playlist_gui(config: Config, playlist_url: str):
     root = tk.Tk()
     root.title("Track Downloader")
     root.minsize(640, 480)
-    root.iconbitmap("icon.ico")
+    set_window_icon(root)
 
     # ========== Toolbar ==========
     toolbar_frame = ttk.Frame(root)
@@ -196,11 +201,13 @@ def download_playlist_gui(config: Config, playlist_url: str):
         # A console prompt would be invisible and freeze the window
         messagebox.showinfo("Manual Download", f"{message}\n\nClick OK once done.")
 
+    @report_errors("Load Playlist")
     def on_load_playlist():
         nonlocal playlist_info
 
         # Clear table view
         tableview.delete(*tableview.get_children())
+        playlist_info = PlaylistInfo()
 
         # Extract track infos
         playlist_info = extract_playlist_info(config, playlist_entry.get())
@@ -209,6 +216,10 @@ def download_playlist_gui(config: Config, playlist_url: str):
         for track_info in playlist_info.get_flat_list():
             add_list_entry(config, tableview, track_info)
 
+        if not playlist_info.get_flat_list():
+            messagebox.showinfo("Load Playlist", "This playlist has no track to download.")
+
+    @report_errors("Download")
     def on_download_selected():
         nonlocal playlist_info
 
@@ -219,12 +230,23 @@ def download_playlist_gui(config: Config, playlist_url: str):
         track_infos = playlist_info.get_flat_list()
         selected_track_infos = [track_infos[tableview.index(row)] for row in tableview.selection()]
 
+        if not selected_track_infos:
+            messagebox.showinfo("Download", "Select at least one track to download.")
+            return
+
         # Download selected tracks
         download_playlist(config, PlaylistInfo.from_flat_list(selected_track_infos), on_prompt)
 
+    @report_errors("Download")
     def on_download_all():
         nonlocal playlist_info
+
         update_playlist_info(config, tableview, playlist_info)
+
+        if not playlist_info.get_flat_list():
+            messagebox.showinfo("Download", "Load a playlist first.")
+            return
+
         download_playlist(config, playlist_info, on_prompt)
 
     # ========== Download Buttons ==========
