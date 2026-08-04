@@ -19,7 +19,7 @@ def download_direct_downloads(config: Config, track_infos: list[TrackInfo]):
         Unused for now because direct downloads require a client ID
     """
     for track_info in track_infos:
-        print(f'* {track_info.name}')
+        logger.info(f'* {track_info.name}')
 
         # Download file to downloads folder
         filename = f'{track_info.name}.wav'
@@ -36,7 +36,7 @@ def console_prompt(message):
 def download_web_downloads(config: Config, track_infos: list[TrackInfo], web_driver, ignored_files=(), prompt=console_prompt):
     """ Downloads tracks that require user action (direct download, download gate, etc.) """
     for track_info in track_infos:
-        print(f'* {track_info.name}')
+        logger.info(f'* {track_info.name}')
 
         if web_driver:
             # Open a page with the download gate
@@ -64,7 +64,7 @@ def download_buy_downloads(config: Config, track_infos: list[TrackInfo], ignored
     backend.connect()
 
     for track_info in track_infos:
-        print(f'* {track_info.name}')
+        logger.info(f'* {track_info.name}')
 
         # Each query is downloaded on its own so the files it produced are known
         query = f'{track_info.artists[0]} {track_info.title}'
@@ -123,7 +123,7 @@ def download_playlist(config: Config, playlist_info: PlaylistInfo, prompt=consol
             download_all_tracks(config, playlist_info, web_driver, ignored_files, prompt)
 
         except Exception as e:
-            print(e)
+            logger.error(e)
 
         finally:
             # Close the browser, it may have failed to start
@@ -134,7 +134,7 @@ def download_playlist(config: Config, playlist_info: PlaylistInfo, prompt=consol
             # Process track infos
             download_all_tracks(config, playlist_info, None, ignored_files, prompt)
         except Exception as e:
-            print(e)
+            logger.error(e)
 
 def download_playlist_cli(config: Config, playlist_url: str):
     """ Downloads a playlist (console version) """

@@ -17,7 +17,7 @@ def main():
     try:
         config = Config.load()
     except (FileNotFoundError, ValueError) as e:
-        print(f"ERROR: {e}")
+        logging.error(e)
         return
 
     if args.gui:

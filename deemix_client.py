@@ -20,7 +20,7 @@ class DeemixClient:
         def send(key, value=None):
             logString = formatListener(key, value)
             if logString:
-                print(logString)
+                logger.info(logString)
 
     def __init__(self, config_folder: str, arl: str, client_id: str, client_secret: str):
         self.deezer = Deezer()
