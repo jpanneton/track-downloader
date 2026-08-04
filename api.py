@@ -1,132 +1,15 @@
-import logging
 import os
-
-from deemix_client import DeemixClient
-
-from qobuz_dl.core import QobuzDL
-from qobuz_dl.exceptions import AuthenticationError
 
 from selenium.webdriver import Chrome as ChromeDriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 
-from spotipy import Spotify
-from spotipy.oauth2 import SpotifyClientCredentials
+from backends import create_backend
 
 from config import Config
 from models import PlaylistInfo, TrackInfo
 from sources import extract_playlist_info
 from tagging import process_file
-from utils import flatten_folder, list_downloaded_files
-
-#--------------------------------------------------------------------
-# DEEZER
-#--------------------------------------------------------------------
-
-def deezer_download(config: Config, queries):
-    """ Searches for tracks in Spotify using a query and downloads them from Deezer """
-    # Server-to-server authentication (only works with public playlists)
-    spotify = Spotify(client_credentials_manager=SpotifyClientCredentials(
-        client_id=config.spotify.client_id,
-        client_secret=config.spotify.client_secret
-    ))
-
-    # Search for tracks
-    track_urls = []
-    query_indices = [] # Maps each URL back to the query it came from
-    skipped_tracks = []
-
-    for idx, query in enumerate(queries):
-        results = spotify.search(q=query, type='track', limit=1)['tracks']['items']
-
-        if results:
-            # Use first result (best match)
-            track_urls.append(results[0]['external_urls']['spotify'])
-            query_indices.append(idx)
-        else:
-            print(f"WARNING: Track not found in Spotify using '{query}'")
-            skipped_tracks.append(idx)
-
-    # Init Deezer client
-    deemix = DeemixClient(
-        config_folder = "./config/deemix",
-        arl=config.deezer.deezer_arl,
-        client_id=config.spotify.client_id,
-        client_secret=config.spotify.client_secret
-    )
-
-    # Download tracks
-    skipped_urls = deemix.download(
-        urls=track_urls,
-        path=config.downloads.root_folder,
-        flac=config.downloads.lossless
-    )
-
-    # Report skipped URLs as the queries they came from
-    skipped_tracks.extend(query_indices[idx] for idx in skipped_urls)
-
-    return sorted(skipped_tracks)
-
-#--------------------------------------------------------------------
-# QOBUZ
-#--------------------------------------------------------------------
-
-def qobuz_download(config: Config, queries):
-    """ Searches for tracks in Qobuz using a query and downloads them """
-    logger = logging.getLogger('qobuz_dl')
-    logger.setLevel(logging.WARNING)
-
-    # Init Qobuz client
-    qobuz = QobuzDL(
-        directory=config.downloads.root_folder,
-        quality=6 if config.downloads.lossless else 5,
-        embed_art=True,
-        lucky_type="track"
-    )
-    # A user auth token is only accepted by the app it was issued for, so the
-    # scraped app credentials can't be used to log in with a configured token
-    if config.qobuz.app_id and config.qobuz.app_secret:
-        app_id = str(config.qobuz.app_id)
-        secrets = [str(config.qobuz.app_secret)]
-    elif config.qobuz.user_id and config.qobuz.token:
-        raise ValueError(
-            "Missing Qobuz app ID and secret. A user auth token is only valid under "
-            "the app ID it was issued for, so scraped app credentials are rejected."
-        )
-    else:
-        qobuz.get_tokens() # Get 'app_id' and 'secrets' attributes
-        app_id = str(qobuz.app_id)
-        secrets = qobuz.secrets
-
-    try:
-        qobuz.initialize_client(
-            str(config.qobuz.user_id),
-            str(config.qobuz.token),
-            app_id,
-            secrets # Must stay a list, each secret is probed individually
-        )
-    except AuthenticationError:
-        # Qobuz rejects a valid token the same way as an invalid one when it
-        # was issued for another app, so point at both possible causes
-        raise AuthenticationError(
-            f"Invalid credentials. Make sure the token was issued for app ID {app_id}."
-        )
-
-    # Download tracks
-    skipped_tracks = []
-    for idx, query in enumerate(queries):
-        try:
-            # Returns None when the query is too short or the type is invalid
-            if not qobuz.lucky_mode(query):
-                skipped_tracks.append(idx)
-        except Exception as e:
-            print(f"WARNING: {e}")
-            skipped_tracks.append(idx)
-            continue
-
-    # Qobuz groups each track in a release sub-folder
-    flatten_folder(config.downloads.root_folder)
-
-    return skipped_tracks
+from utils import download_file, list_downloaded_files
 
 def download_direct_downloads(config: Config, track_infos: list[TrackInfo]):
     """ Downloads tracks that have a direct download link
@@ -174,45 +57,23 @@ def download_web_downloads(config: Config, track_infos: list[TrackInfo], web_dri
 
 def download_buy_downloads(config: Config, track_infos: list[TrackInfo], ignored_files=()):
     """ Downloads tracks that are available for purchase """
-    track_infos = track_infos.copy()
+    backend = create_backend(config)
+    backend.connect()
 
-    # Generates queries
-    queries = []
     for track_info in track_infos:
-        queries.append(f'{track_info.artists[0]} {track_info.title}')
+        print(f'* {track_info.name}')
 
-    # Execute download backend
-    if config.downloads.backend == 'deezer':
-        skipped_tracks = deezer_download(config, queries)
-    elif config.downloads.backend == 'qobuz':
-        skipped_tracks = qobuz_download(config, queries)
-    else:
-        print(f"ERROR: Invalid download backend '{config.downloads.backend}'")
-        return
+        # Each query is downloaded on its own so the files it produced are known
+        query = f'{track_info.artists[0]} {track_info.title}'
+        filenames = backend.download(query)
 
-    # Remove skipped tracks from track infos
-    for track_index in sorted(skipped_tracks, reverse=True):
-        track_info = track_infos[track_index]
-        print(f"SKIPPED: {track_info.artists[0]} - {track_info.title}")
-        del track_infos[track_index]
-
-    filenames = list_downloaded_files(config, ignored_files)
-    if len(filenames) == len(track_infos):
-        # Create a list of tuples containing filename and creation time
-        filenames = [(f, os.path.getctime(os.path.join(config.downloads.root_folder, f))) for f in filenames]
-
-        # Sort the list of tuples based on creation time (same order as track_infos)
-        filenames = sorted(filenames, key=lambda x: x[1])
-
-        # Extract filenames back from the sorted list of tuples
-        filenames = [filename for filename, _ in filenames]
+        if not filenames:
+            print(f"SKIPPED: {track_info.artists[0]} - {track_info.title}")
+            continue
 
         # Process the files
-        for i, filename in enumerate(filenames):
-            process_file(config, track_infos[i], filename)
-    else:
-        print("ERROR: File count mismatch in downloads folder")
-        return
+        for filename in filenames:
+            process_file(config, track_info, filename)
 
 def download_all_tracks(config: Config, playlist_info: PlaylistInfo, web_driver, ignored_files=(), prompt=console_prompt):
     """ Downloads every tracks """
