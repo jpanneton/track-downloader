@@ -95,19 +95,17 @@ class PlaylistInfo:
 # FILE HELPERS
 #--------------------------------------------------------------------
     
-def delete_files_in_folder(folder_path):
-    """ Deletes every file in a folder excluding sub-folders """
-    if not os.path.exists(folder_path):
-        return
+def list_downloaded_files(config: Config, ignored_files=()):
+    """ Lists the files sitting in the downloads folder excluding sub-folders """
+    root_folder = config.downloads.root_folder
+    if not os.path.exists(root_folder):
+        return []
 
-    # Iterate over all items in the folder
-    for item in os.listdir(folder_path):
-        item_path = os.path.join(folder_path, item)
-        
-        # Check if the item is a file
-        if os.path.isfile(item_path):
-            # Delete the file
-            os.remove(item_path)
+    return [
+        filename for filename in os.listdir(root_folder)
+        if filename not in ignored_files
+        and os.path.isfile(os.path.join(root_folder, filename))
+    ]
 
 def quarantine_file(config: Config, source_path):
     """ Moves a file that failed validation out of the downloads folder
@@ -659,7 +657,7 @@ def download_direct_downloads(config: Config, track_infos: list[TrackInfo]):
         # Process the file
         process_file(config, track_info, filename)
 
-def download_web_downloads(config: Config, track_infos: list[TrackInfo], web_driver):
+def download_web_downloads(config: Config, track_infos: list[TrackInfo], web_driver, ignored_files=()):
     """ Downloads tracks that require user action (direct download, download gate, etc.) """
     for track_info in track_infos:
         print(f'* {track_info.name}')
@@ -675,7 +673,7 @@ def download_web_downloads(config: Config, track_infos: list[TrackInfo], web_dri
             input("Download track manually, move it to 'downloads' folder then press Enter to continue...")
 
         # Process the file
-        filenames = [f for f in os.listdir(config.downloads.root_folder) if is_file_downloaded(config, f)]
+        filenames = list_downloaded_files(config, ignored_files)
         if len(filenames) == 1:
             process_file(config, track_info, filenames[0])
         elif len(filenames) == 0:
@@ -684,7 +682,7 @@ def download_web_downloads(config: Config, track_infos: list[TrackInfo], web_dri
             print("ERROR: Found more than one file in downloads folder")
             return
 
-def download_buy_downloads(config: Config, track_infos: list[TrackInfo]):
+def download_buy_downloads(config: Config, track_infos: list[TrackInfo], ignored_files=()):
     """ Downloads tracks that are available for purchase """
     track_infos = track_infos.copy()
 
@@ -708,7 +706,7 @@ def download_buy_downloads(config: Config, track_infos: list[TrackInfo]):
         print(f"SKIPPED: {track_info.artists[0]} - {track_info.title}")
         del track_infos[track_index]
 
-    filenames = [f for f in os.listdir(config.downloads.root_folder) if is_file_downloaded(config, f)]
+    filenames = list_downloaded_files(config, ignored_files)
     if len(filenames) == len(track_infos):
         # Create a list of tuples containing filename and creation time
         filenames = [(f, os.path.getctime(os.path.join(config.downloads.root_folder, f))) for f in filenames]
@@ -726,27 +724,29 @@ def download_buy_downloads(config: Config, track_infos: list[TrackInfo]):
         print("ERROR: File count mismatch in downloads folder")
         return
 
-def download_all_tracks(config: Config, playlist_info: PlaylistInfo, web_driver):
+def download_all_tracks(config: Config, playlist_info: PlaylistInfo, web_driver, ignored_files=()):
     """ Downloads every tracks """
     if playlist_info.gate_downloads:
         print("INFO: Downloading gate downloads...")
-        download_web_downloads(config, playlist_info.gate_downloads, web_driver)
+        download_web_downloads(config, playlist_info.gate_downloads, web_driver, ignored_files)
 
     if playlist_info.direct_downloads:
         print("INFO: Downloading direct downloads...")
-        download_web_downloads(config, playlist_info.direct_downloads, web_driver)
+        download_web_downloads(config, playlist_info.direct_downloads, web_driver, ignored_files)
 
     if playlist_info.buy_downloads:
         print("INFO: Downloading buy downloads...")
-        download_buy_downloads(config, playlist_info.buy_downloads)
+        download_buy_downloads(config, playlist_info.buy_downloads, ignored_files)
 
 def download_playlist(config: Config, playlist_info: PlaylistInfo):
     """ Downloads a playlist """
     # Create root download folder if necessary
     os.makedirs(config.downloads.root_folder, exist_ok=True)
 
-    # Clear root folder in case there are any files
-    delete_files_in_folder(config.downloads.root_folder)
+    # Leave files that were already there alone, they aren't part of this run
+    ignored_files = list_downloaded_files(config)
+    if ignored_files:
+        print(f"WARNING: Ignoring {len(ignored_files)} file(s) already in the downloads folder")
 
     # Create web driver only if needed
     if config.soundcloud.use_web_driver and (playlist_info.gate_downloads or playlist_info.direct_downloads):
@@ -762,7 +762,7 @@ def download_playlist(config: Config, playlist_info: PlaylistInfo):
             web_driver = ChromeDriver(options=chrome_options)
 
             # Process track infos
-            download_all_tracks(config, playlist_info, web_driver)
+            download_all_tracks(config, playlist_info, web_driver, ignored_files)
 
         except Exception as e:
             print(e)
@@ -773,7 +773,7 @@ def download_playlist(config: Config, playlist_info: PlaylistInfo):
     else:
         try:
             # Process track infos
-            download_all_tracks(config, playlist_info, None)
+            download_all_tracks(config, playlist_info, None, ignored_files)
         except Exception as e:
             print(e)
 
