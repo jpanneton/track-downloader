@@ -750,6 +750,7 @@ def download_playlist(config: Config, playlist_info: PlaylistInfo):
 
     # Create web driver only if needed
     if config.soundcloud.use_web_driver and (playlist_info.gate_downloads or playlist_info.direct_downloads):
+        web_driver = None
         try:
             # Setup Chrome options
             chrome_options = ChromeOptions()
@@ -768,8 +769,9 @@ def download_playlist(config: Config, playlist_info: PlaylistInfo):
             print(e)
 
         finally:
-            # Close the browser
-            web_driver.quit()
+            # Close the browser, it may have failed to start
+            if web_driver:
+                web_driver.quit()
     else:
         try:
             # Process track infos
