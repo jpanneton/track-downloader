@@ -223,14 +223,19 @@ def deezer_download(config: Config, queries):
 
     # Search for tracks
     track_urls = []
-    for query in queries:
+    query_indices = [] # Maps each URL back to the query it came from
+    skipped_tracks = []
+
+    for idx, query in enumerate(queries):
         results = spotify.search(q=query, type='track', limit=1)['tracks']['items']
 
         if results:
             # Use first result (best match)
             track_urls.append(results[0]['external_urls']['spotify'])
+            query_indices.append(idx)
         else:
             print(f"WARNING: Track not found in Spotify using '{query}'")
+            skipped_tracks.append(idx)
 
     # Init Deezer client
     deemix = DeemixClient(
@@ -241,11 +246,16 @@ def deezer_download(config: Config, queries):
     )
 
     # Download tracks
-    return deemix.download(
+    skipped_urls = deemix.download(
         urls=track_urls,
         path=config.downloads.root_folder,
         flac=config.downloads.lossless
     )
+
+    # Report skipped URLs as the queries they came from
+    skipped_tracks.extend(query_indices[idx] for idx in skipped_urls)
+
+    return sorted(skipped_tracks)
 
 #--------------------------------------------------------------------
 # QOBUZ
