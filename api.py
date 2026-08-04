@@ -4,6 +4,8 @@ import re
 import requests
 import shutil
 
+from dataclasses import dataclass, field
+
 from deemix_client import DeemixClient
 
 from mutagen.easyid3 import EasyID3
@@ -40,19 +42,20 @@ SUPPORTED_AUDIO_EXTENSIONS = ('.flac', '.mp3', '.wav')
 # TYPES
 #--------------------------------------------------------------------
 
+@dataclass(slots=True)
 class TrackInfo:
     """ Single track info """
-    name: str
-    title: str
-    artists: list[str]
-    album: str
-    album_artists: list[str]
-    year: str
-    number: int
-    genre: str
-    artwork_url: str
-    download_url: str
-    category: str
+    name: str = ''
+    title: str = ''
+    artists: list[str] = field(default_factory=list)
+    album: str = ''
+    album_artists: list[str] = field(default_factory=list)
+    year: str = ''
+    number: int = 1
+    genre: str = ''
+    artwork_url: str = ''
+    download_url: str = ''
+    category: str = ''
 
 class PlaylistInfo:
     """ Track info collection """
