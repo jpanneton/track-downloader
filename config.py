@@ -42,6 +42,10 @@ class DeezerConfig:
 class QobuzConfig:
     user_id: str
     token: str
+    # A user auth token is only valid under the app it was issued for, so the
+    # app credentials must match the ones used to obtain the token
+    app_id: str = ''
+    app_secret: str = ''
 
 @dataclass(slots=True)
 class Config:

@@ -46,5 +46,10 @@ redirect_url = "https://localhost:8888/callback"
 deezer_arl = ""
 
 [qobuz]
+# Qobuz user ID and auth token
 user_id = ""
 token = ""
+# App ID and secret the auth token was issued for (required)
+# A token is rejected under any other app ID
+app_id = ""
+app_secret = ""
