@@ -226,7 +226,7 @@ def qobuz_download(config: Config, queries):
         str(config.qobuz.user_id),
         str(config.qobuz.token),
         str(qobuz.app_id),
-        str(qobuz.secrets)
+        qobuz.secrets # Must stay a list, each secret is probed individually
     )
 
     # Download tracks
