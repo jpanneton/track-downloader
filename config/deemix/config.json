@@ -55,7 +55,7 @@
     "discNumber": false,
     "discTotal": false,
     "albumArtist": false,
-    "genre": false,
+    "genre": true,
     "year": false,
     "date": false,
     "explicit": false,
