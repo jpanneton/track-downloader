@@ -47,7 +47,8 @@ def extract_soundcloud_playlist_info(config: Config, playlist_url: str):
             track_info.album_artists = []
             track_info.year = track.display_date.split('-')[0] if track.display_date else ''
             track_info.number = 1
-            track_info.genre = config.metadata.default_genre
+            # SoundCloud lets uploaders leave the genre empty
+            track_info.genre = track.genre or ''
             track_info.artwork_url = track.artwork_url.replace('large', 't500x500') if track.artwork_url else ''
         except Exception as e:
             # One unusable track shouldn't discard the whole playlist
