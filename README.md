@@ -51,6 +51,19 @@ python download_tracks.py --url https://...
 
 Without `--url`, the `playlist_url` set in the config is used. Note: the command line version doesn't support metadata editing.
 
+## Interface
+
+Each track shows its outcome in the **Status** column, with the row tinted to match:
+
+| Status | Meaning |
+|---|---|
+| Downloaded | tagged and moved to the dated folder |
+| Skipped | the backend found nothing matching the track |
+| Rejected | downloaded but the tags didn't match, kept in `_rejected/` |
+| Failed | the download or the tagging raised an error |
+
+Downloads run in the background, so the window stays usable and can be stopped with **Cancel** (the track in progress finishes first). A counter shows the progress and a summary is shown at the end. **Show Log** opens a panel with the messages that otherwise only reach the console, and **Open Folder** reveals the exported files. Double-clicking the status of a rejected track opens the folder it was kept in.
+
 ## Errors
 
 Missing or invalid settings are reported before anything is downloaded: the GUI shows a dialog naming what is missing, the command line logs it and exits with a non-zero code. A track that fails is logged and skipped, the rest of the playlist still downloads.
