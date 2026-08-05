@@ -8,7 +8,7 @@ from backends import create_backend
 
 from config import Config
 from errors import BackendError, format_error
-from models import PlaylistInfo, TrackInfo
+from models import PlaylistInfo, TrackInfo, TrackStatus
 from sources import extract_playlist_info
 from tagging import process_file
 from utils import download_file, list_downloaded_files
@@ -30,14 +30,32 @@ def download_direct_downloads(config: Config, track_infos: list[TrackInfo]):
         # Process the file
         process_file(config, track_info, filename)
 
-def console_prompt(message):
-    """ Waits for the user to acknowledge a message in the console """
-    input(f"{message} Press Enter to continue...")
+class DownloadListener:
+    """ Follows a download run and decides whether it should keep going
+        The console implementation is the default, the GUI overrides it
+    """
 
-def download_web_downloads(config: Config, track_infos: list[TrackInfo], web_driver, ignored_files=(), prompt=console_prompt):
+    def prompt(self, message: str):
+        """ Waits for the user to complete a manual download """
+        input(f"{message} Press Enter to continue...")
+
+    def track_status(self, track_info: TrackInfo, status: str):
+        """ Reports the outcome of a single track """
+
+    def is_cancelled(self):
+        """ Whether the user asked to stop before the next track """
+        return False
+
+def download_web_downloads(config: Config, track_infos: list[TrackInfo], web_driver, ignored_files=(), listener=None):
     """ Downloads tracks that require user action (direct download, download gate, etc.) """
+    listener = listener or DownloadListener()
+
     for track_info in track_infos:
+        if listener.is_cancelled():
+            break
+
         logger.info(f'* {track_info.name}')
+        listener.track_status(track_info, TrackStatus.DOWNLOADING)
 
         try:
             if web_driver:
@@ -45,30 +63,41 @@ def download_web_downloads(config: Config, track_infos: list[TrackInfo], web_dri
                 web_driver.get(track_info.download_url)
 
                 # Prompt the user to continue after downloading
-                prompt(f"Download '{track_info.name}' in the browser.")
+                listener.prompt(f"Download '{track_info.name}' in the browser.")
             else:
                 # Prompt the user to continue after downloading
-                prompt(f"Download '{track_info.name}' manually and move it to the downloads folder.")
+                listener.prompt(f"Download '{track_info.name}' manually and move it to the downloads folder.")
 
             # Process the file
             filenames = list_downloaded_files(config, ignored_files)
             if len(filenames) == 1:
-                process_file(config, track_info, filenames[0])
+                status = process_file(config, track_info, filenames[0])
             elif len(filenames) == 0:
                 logger.warning("Track hasn't been downloaded by the user")
+                status = TrackStatus.SKIPPED
             else:
                 logger.error(f"Found {len(filenames)} files in the downloads folder, expected one")
+                status = TrackStatus.FAILED
         except Exception as e:
             # One failing track shouldn't abandon the rest of the playlist
             logger.error(f"FAILED: {track_info.name}: {format_error(e)}")
+            status = TrackStatus.FAILED
 
-def download_buy_downloads(config: Config, track_infos: list[TrackInfo], ignored_files=()):
+        listener.track_status(track_info, status)
+
+def download_buy_downloads(config: Config, track_infos: list[TrackInfo], ignored_files=(), listener=None):
     """ Downloads tracks that are available for purchase """
+    listener = listener or DownloadListener()
+
     backend = create_backend(config)
     backend.connect()
 
     for track_info in track_infos:
+        if listener.is_cancelled():
+            break
+
         logger.info(f'* {track_info.name}')
+        listener.track_status(track_info, TrackStatus.DOWNLOADING)
 
         try:
             # Each query is downloaded on its own so the files it produced are known
@@ -77,33 +106,38 @@ def download_buy_downloads(config: Config, track_infos: list[TrackInfo], ignored
 
             if not filenames:
                 logger.info(f"SKIPPED: {track_info.name}")
+                listener.track_status(track_info, TrackStatus.SKIPPED)
                 continue
 
-            # Process the files
+            # Process the files, the status of the last one represents the track
+            status = TrackStatus.FAILED
             for filename in filenames:
-                process_file(config, track_info, filename)
+                status = process_file(config, track_info, filename)
         except Exception as e:
             # One failing track shouldn't abandon the rest of the playlist
             logger.error(f"FAILED: {track_info.name}: {format_error(e)}")
+            status = TrackStatus.FAILED
 
-def download_all_tracks(config: Config, playlist_info: PlaylistInfo, web_driver, ignored_files=(), prompt=console_prompt):
+        listener.track_status(track_info, status)
+
+def download_all_tracks(config: Config, playlist_info: PlaylistInfo, web_driver, ignored_files=(), listener=None):
     """ Downloads every tracks """
     if playlist_info.gate_downloads:
         logger.info("Downloading gate downloads...")
-        download_web_downloads(config, playlist_info.gate_downloads, web_driver, ignored_files, prompt)
+        download_web_downloads(config, playlist_info.gate_downloads, web_driver, ignored_files, listener)
 
     if playlist_info.direct_downloads:
         logger.info("Downloading direct downloads...")
-        download_web_downloads(config, playlist_info.direct_downloads, web_driver, ignored_files, prompt)
+        download_web_downloads(config, playlist_info.direct_downloads, web_driver, ignored_files, listener)
 
     if playlist_info.buy_downloads:
         logger.info("Downloading buy downloads...")
-        download_buy_downloads(config, playlist_info.buy_downloads, ignored_files)
+        download_buy_downloads(config, playlist_info.buy_downloads, ignored_files, listener)
 
-def download_playlist(config: Config, playlist_info: PlaylistInfo, prompt=console_prompt):
+def download_playlist(config: Config, playlist_info: PlaylistInfo, listener=None):
     """ Downloads a playlist
-        'prompt' is how the user is asked to complete a manual download, the
-        console prompt is invisible when running from the GUI
+        'listener' follows the run and answers manual download prompts, the
+        console implementation is invisible when running from the GUI
     """
     # Create root download folder if necessary
     os.makedirs(config.downloads.root_folder, exist_ok=True)
@@ -131,14 +165,14 @@ def download_playlist(config: Config, playlist_info: PlaylistInfo, prompt=consol
 
         try:
             # Process track infos
-            download_all_tracks(config, playlist_info, web_driver, ignored_files, prompt)
+            download_all_tracks(config, playlist_info, web_driver, ignored_files, listener)
         finally:
             # Close the browser, it may have failed to start
             if web_driver:
                 web_driver.quit()
     else:
         # Process track infos
-        download_all_tracks(config, playlist_info, None, ignored_files, prompt)
+        download_all_tracks(config, playlist_info, None, ignored_files, listener)
 
 def download_playlist_cli(config: Config, playlist_url: str):
     """ Downloads a playlist (console version) """

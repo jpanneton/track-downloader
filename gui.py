@@ -4,7 +4,7 @@ from config import Config
 from config_editor import ConfigEditor
 from gui_utils import report_errors, set_window_icon
 from models import PlaylistInfo, TrackInfo
-from pipeline import download_playlist
+from pipeline import DownloadListener, download_playlist
 from sources import extract_playlist_info
 
 import tkinter as tk
@@ -197,9 +197,12 @@ def download_playlist_gui(config: Config, playlist_url: str):
     playlist_info = PlaylistInfo()
 
     # ========== Callbacks ==========
-    def on_prompt(message):
-        # A console prompt would be invisible and freeze the window
-        messagebox.showinfo("Manual Download", f"{message}\n\nClick OK once done.")
+    class GuiListener(DownloadListener):
+        """ Reports the progress of a download run to the window """
+
+        def prompt(self, message):
+            # A console prompt would be invisible and freeze the window
+            messagebox.showinfo("Manual Download", f"{message}\n\nClick OK once done.")
 
     @report_errors("Load Playlist")
     def on_load_playlist():
@@ -235,7 +238,7 @@ def download_playlist_gui(config: Config, playlist_url: str):
             return
 
         # Download selected tracks
-        download_playlist(config, PlaylistInfo.from_flat_list(selected_track_infos), on_prompt)
+        download_playlist(config, PlaylistInfo.from_flat_list(selected_track_infos), GuiListener())
 
     @report_errors("Download")
     def on_download_all():
@@ -247,7 +250,7 @@ def download_playlist_gui(config: Config, playlist_url: str):
             messagebox.showinfo("Download", "Load a playlist first.")
             return
 
-        download_playlist(config, playlist_info, on_prompt)
+        download_playlist(config, playlist_info, GuiListener())
 
     # ========== Download Buttons ==========
     download_buttons_frame = ttk.Frame(root)
