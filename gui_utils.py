@@ -1,4 +1,7 @@
+import json
 import logging
+
+from pathlib import Path
 
 import tkinter as tk
 from tkinter import messagebox
@@ -6,6 +9,32 @@ from tkinter import messagebox
 from errors import TrackDownloaderError, format_error
 
 logger = logging.getLogger(__name__)
+
+# Window state is per machine, it doesn't belong in the shared config
+LAYOUT_PATH = Path('config/layout.json')
+
+def restore_window_layout(window):
+    """ Restores the size and position the window was last closed with """
+    try:
+        layout = json.loads(LAYOUT_PATH.read_text(encoding='utf-8'))
+        geometry = layout.get('geometry')
+    except (OSError, ValueError):
+        return
+
+    # A saved position can be off screen after a monitor change
+    if geometry and window.winfo_screenwidth() > 0:
+        try:
+            window.geometry(geometry)
+        except tk.TclError:
+            logger.debug(f"Ignoring invalid saved geometry {geometry!r}")
+
+def save_window_layout(window):
+    """ Remembers the size and position of the window """
+    try:
+        LAYOUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+        LAYOUT_PATH.write_text(json.dumps({'geometry': window.geometry()}), encoding='utf-8')
+    except OSError as e:
+        logger.debug(f"Could not save the window layout: {e}")
 
 class QueueLogHandler(logging.Handler):
     """ Forwards log records to the window through a queue

@@ -1,4 +1,5 @@
 import logging
+import os
 import queue
 import threading
 
@@ -6,7 +7,14 @@ from collections import Counter
 
 from config import Config
 from config_editor import ConfigEditor
-from gui_utils import QueueLogHandler, report_errors, set_window_icon, show_error
+from gui_utils import (
+    QueueLogHandler,
+    report_errors,
+    restore_window_layout,
+    save_window_layout,
+    set_window_icon,
+    show_error
+)
 from models import PlaylistInfo, TrackInfo, TrackStatus
 from pipeline import DownloadListener, download_playlist
 from sources import extract_playlist_info
@@ -92,6 +100,8 @@ class TableView(ttk.Treeview):
         super().__init__(*args, **kwargs)
         self.bind("<Double-1>", self.on_double_click)
         self.readonly_columns = []
+        # Called instead of editing when a readonly cell is double clicked
+        self.on_readonly_double_click = None
 
     def set_readonly_columns(self, columns):
         # Validate columns
@@ -115,7 +125,14 @@ class TableView(ttk.Treeview):
         culumn_index = int(column[1:]) - 1
 
         # Don't do anything if an header was clicked
-        if not row or self['columns'][culumn_index] in self.readonly_columns:
+        if not row:
+            return
+
+        # A readonly cell can still act on the double click
+        column_id = self['columns'][culumn_index]
+        if column_id in self.readonly_columns:
+            if self.on_readonly_double_click:
+                self.on_readonly_double_click(row, column_id)
             return
 
         # Get cell rect
@@ -183,6 +200,7 @@ def download_playlist_gui(config: Config, playlist_url: str):
     root.title("Track Downloader")
     root.minsize(640, 480)
     set_window_icon(root)
+    restore_window_layout(root)
 
     # ========== Toolbar ==========
     toolbar_frame = ttk.Frame(root)
@@ -450,20 +468,70 @@ def download_playlist_gui(config: Config, playlist_url: str):
         cancel_event.set()
         cancel_button.configure(state=tk.DISABLED)
 
+    def on_select_all(*ignore):
+        tableview.selection_set(tableview.get_children())
+        return 'break'
+
+    def on_invert_selection():
+        selected = set(tableview.selection())
+        tableview.selection_set([row for row in tableview.get_children() if row not in selected])
+
+    @report_errors("Open Folder")
+    def open_folder(folder_path):
+        """ Reveals a folder in the file explorer """
+        if not os.path.isdir(folder_path):
+            messagebox.showinfo("Open Folder", f"Nothing downloaded there yet:\n{folder_path}")
+            return
+
+        os.startfile(folder_path)
+
+    def on_open_downloads():
+        # The dated folder only exists once something has been exported
+        exported = config.downloads.flac_folder if config.downloads.lossless else config.downloads.mp3_folder
+        open_folder(exported if os.path.isdir(exported) else config.downloads.root_folder)
+
     # ========== Download Buttons ==========
     download_buttons_frame = ttk.Frame(root)
     download_selected_button = ttk.Button(download_buttons_frame, text="Download Selected", command=on_download_selected)
     download_all_button = ttk.Button(download_buttons_frame, text="Download All", command=on_download_all)
     cancel_button = ttk.Button(download_buttons_frame, text="Cancel", command=on_cancel, state=tk.DISABLED)
 
-    download_selected_button.pack(side=tk.LEFT, padx=10)
-    download_all_button.pack(side=tk.LEFT, padx=10)
-    cancel_button.pack(side=tk.LEFT, padx=10)
+    select_all_button = ttk.Button(download_buttons_frame, text="Select All", command=on_select_all)
+    invert_button = ttk.Button(download_buttons_frame, text="Invert", command=on_invert_selection)
+    open_folder_button = ttk.Button(download_buttons_frame, text="Open Folder", command=on_open_downloads)
+
+    select_all_button.pack(side=tk.LEFT, padx=(10, 2))
+    invert_button.pack(side=tk.LEFT, padx=2)
+    download_selected_button.pack(side=tk.LEFT, padx=(20, 2))
+    download_all_button.pack(side=tk.LEFT, padx=2)
+    cancel_button.pack(side=tk.LEFT, padx=2)
+    open_folder_button.pack(side=tk.LEFT, padx=(20, 10))
     download_buttons_frame.pack(padx=10, pady=10)
+
+    # Ctrl+A selects every track
+    tableview.bind('<Control-a>', on_select_all)
+
+    # Double-clicking the status of a rejected track opens where it was kept
+    def on_status_click(row, column_id):
+        if column_id != 'status':
+            return
+        values = tableview.item(row, 'values')
+        if values[STATUS_INDEX] == TrackStatus.REJECTED:
+            open_folder(os.path.join(config.downloads.root_folder, REJECTED_FOLDER_NAME))
+
+    tableview.on_readonly_double_click = on_status_click
 
     # Mirror the console log into the panel
     log_handler = QueueLogHandler(events)
     logging.getLogger().addHandler(log_handler)
+
+    def on_close():
+        save_window_layout(root)
+        # A running download would keep the process alive otherwise
+        cancel_event.set()
+        root.destroy()
+
+    root.protocol("WM_DELETE_WINDOW", on_close)
 
     # Start pumping worker events, then the main loop
     root.after(100, pump_events)

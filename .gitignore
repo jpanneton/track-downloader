@@ -2,3 +2,4 @@ downloads/
 __pycache__/
 config/secrets.toml
 .cache
+config/layout.json
