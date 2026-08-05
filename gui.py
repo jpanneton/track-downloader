@@ -3,7 +3,7 @@ import logging
 from config import Config
 from config_editor import ConfigEditor
 from gui_utils import report_errors, set_window_icon
-from models import PlaylistInfo, TrackInfo
+from models import PlaylistInfo, TrackInfo, TrackStatus
 from pipeline import DownloadListener, download_playlist
 from sources import extract_playlist_info
 
@@ -11,6 +11,32 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 logger = logging.getLogger(__name__)
+
+# Layout of the track table: id, heading, width ratio, centered, editable
+COLUMNS = (
+    ('name',         "Name",          0.24, False, True),
+    ('title',        "Title",         0.14, False, True),
+    ('artists',      "Artists",       0.14, False, True),
+    ('album',        "Album",         0.10, False, True),
+    ('albumartists', "Album Artists", 0.10, False, True),
+    ('year',         "Year",          0.05, True,  True),
+    ('number',       "Number",        0.05, True,  True),
+    ('genre',        "Genre",         0.08, True,  True),
+    ('category',     "Category",      0.05, True,  False),
+    ('status',       "Status",        0.05, True,  False)
+)
+
+COLUMN_IDS = tuple(column[0] for column in COLUMNS)
+STATUS_INDEX = COLUMN_IDS.index('status')
+
+# Row tint per outcome, scanning a long playlist by colour is faster than reading
+STATUS_COLOURS = {
+    TrackStatus.DOWNLOADING: '#e3f2fd',
+    TrackStatus.DOWNLOADED:  '#e8f5e9',
+    TrackStatus.SKIPPED:     '#eceff1',
+    TrackStatus.REJECTED:    '#fff4e5',
+    TrackStatus.FAILED:      '#fdecea'
+}
 
 class EntryPopup(ttk.Entry):
     """ Text entry widget that gets displayed to edit TableView cells """
@@ -63,7 +89,7 @@ class TableView(ttk.Treeview):
         # Validate columns
         for column in columns:
             if column not in self['columns']:
-                print(f"ERROR: Invalid column '{column}'")
+                logger.error(f"Invalid column '{column}'")
         
         # Set columns
         self.readonly_columns = columns
@@ -97,8 +123,8 @@ class TableView(ttk.Treeview):
         self.entryPopup.place(x=x, y=y, width=width, height=height, anchor='w')
 
 def add_list_entry(config: Config, tableview: TableView, track_info: TrackInfo):
-    """ Adds a new track to a table view """
-    tableview.insert(
+    """ Adds a new track to a table view and returns its row """
+    return tableview.insert(
         "",
         tk.END,
         values=(
@@ -110,9 +136,16 @@ def add_list_entry(config: Config, tableview: TableView, track_info: TrackInfo):
             track_info.year,
             track_info.number,
             track_info.genre,
-            track_info.category
+            track_info.category,
+            TrackStatus.PENDING
         )
     )
+
+def set_row_status(tableview: TableView, row, status: str):
+    """ Updates the status cell of a row and tints it accordingly """
+    values = list(tableview.item(row, 'values'))
+    values[STATUS_INDEX] = status
+    tableview.item(row, values=values, tags=(status,) if status else ())
 
 def update_playlist_info(config: Config, tableview: TableView, playlist_info: PlaylistInfo):
     """ Updates playlist info using current table view data """
@@ -121,8 +154,8 @@ def update_playlist_info(config: Config, tableview: TableView, playlist_info: Pl
     for track_info in playlist_info.get_flat_list():
         row = tableview.get_children()[row_index]
         values = tableview.item(row, 'values')
-        assert(len(values) == 9)
-        assert(values[-1] == track_info.category)
+        assert(len(values) == len(COLUMN_IDS))
+        assert(values[COLUMN_IDS.index('category')] == track_info.category)
 
         track_info.name = values[0]
         track_info.title = values[1]
@@ -166,35 +199,35 @@ def download_playlist_gui(config: Config, playlist_url: str):
     playlist_button.pack(side=tk.LEFT)
 
     # ========== Table View ==========
-    tableview = TableView(root, columns=('name', 'title', 'artists', 'album', 'albumartists', 'year', 'number', 'genre', 'category'))
-    tableview.set_readonly_columns(['category'])
+    tableview = TableView(root, columns=COLUMN_IDS)
+    tableview.set_readonly_columns([column_id for column_id, _, _, _, editable in COLUMNS if not editable])
 
+    total_width = tableview.winfo_reqwidth()
     tableview.column('#0', width=0, stretch=tk.NO)
-    tableview.column('name', width=int(tableview.winfo_reqwidth() * 0.25), minwidth=100)
-    tableview.column('title', width=int(tableview.winfo_reqwidth() * 0.15), minwidth=100)
-    tableview.column('artists', width=int(tableview.winfo_reqwidth() * 0.15), minwidth=100)
-    tableview.column('album', width=int(tableview.winfo_reqwidth() * 0.1), minwidth=100)
-    tableview.column('albumartists', width=int(tableview.winfo_reqwidth() * 0.1), minwidth=100)
-    tableview.column('year', width=int(tableview.winfo_reqwidth() * 0.05), minwidth=100, anchor=tk.CENTER, stretch=False)
-    tableview.column('number', width=int(tableview.winfo_reqwidth() * 0.05), minwidth=100, anchor=tk.CENTER, stretch=False)
-    tableview.column('genre', width=int(tableview.winfo_reqwidth() * 0.10), minwidth=100, anchor=tk.CENTER)
-    tableview.column('category', width=int(tableview.winfo_reqwidth() * 0.05), minwidth=100, anchor=tk.CENTER, stretch=False)
+
+    for column_id, heading, ratio, centered, _ in COLUMNS:
+        tableview.column(
+            column_id,
+            width=int(total_width * ratio),
+            minwidth=60,
+            anchor=tk.CENTER if centered else tk.W,
+            stretch=not centered
+        )
+        tableview.heading(column_id, text=heading)
 
     tableview['show'] = 'headings'
-    tableview.heading('name', text="Name")
-    tableview.heading('title', text="Title")
-    tableview.heading('artists', text="Artists")
-    tableview.heading('album', text="Album")
-    tableview.heading('albumartists', text="Album Artists")
-    tableview.heading('year', text="Year")
-    tableview.heading('number', text="Number")
-    tableview.heading('genre', text="Genre")
-    tableview.heading('category', text="Category")
+
+    # Tint each row according to how its download went
+    for status, colour in STATUS_COLOURS.items():
+        tableview.tag_configure(status, background=colour)
 
     tableview.pack(expand=True, fill=tk.BOTH, padx=10)
 
     # Global playlist info
     playlist_info = PlaylistInfo()
+
+    # Row of each track, TrackInfo isn't hashable so it is keyed by identity
+    rows_by_track = {}
 
     # ========== Callbacks ==========
     class GuiListener(DownloadListener):
@@ -204,12 +237,18 @@ def download_playlist_gui(config: Config, playlist_url: str):
             # A console prompt would be invisible and freeze the window
             messagebox.showinfo("Manual Download", f"{message}\n\nClick OK once done.")
 
+        def track_status(self, track_info, status):
+            row = rows_by_track.get(id(track_info))
+            if row:
+                set_row_status(tableview, row, status)
+
     @report_errors("Load Playlist")
     def on_load_playlist():
         nonlocal playlist_info
 
         # Clear table view
         tableview.delete(*tableview.get_children())
+        rows_by_track.clear()
         playlist_info = PlaylistInfo()
 
         # Extract track infos
@@ -217,7 +256,7 @@ def download_playlist_gui(config: Config, playlist_url: str):
 
         # Populate table view
         for track_info in playlist_info.get_flat_list():
-            add_list_entry(config, tableview, track_info)
+            rows_by_track[id(track_info)] = add_list_entry(config, tableview, track_info)
 
         if not playlist_info.get_flat_list():
             messagebox.showinfo("Load Playlist", "This playlist has no track to download.")
