@@ -46,14 +46,25 @@ python download_tracks.py --gui
 To run the script in command line (experimental):
 
 ```bash
-python download_tracks.py
+python download_tracks.py --url https://...
 ```
 
-Note: the command line version doesn't support metadata editing.
+Without `--url`, the `playlist_url` set in the config is used. Note: the command line version doesn't support metadata editing.
 
 ## Errors
 
 Missing or invalid settings are reported before anything is downloaded: the GUI shows a dialog naming what is missing, the command line logs it and exits with a non-zero code. A track that fails is logged and skipped, the rest of the playlist still downloads.
+
+## Genre
+
+The genre of a track is taken from the first of these that provides one:
+
+1. `genre_override` in the config, when set it is forced on every track
+2. the genre from the playlist (SoundCloud), editable per track in the Genre column
+3. the genre the download backend tagged the file with (Qobuz, Deezer)
+4. `default_genre` in the config
+
+Qobuz reports genres in the language of the account, so `genre_override` is the way to keep a library consistent.
 
 ## Downloads
 
