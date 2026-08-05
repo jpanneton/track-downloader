@@ -71,7 +71,6 @@ class SoundcloudConfig:
 class SpotifyConfig:
     client_id: str = ''
     client_secret: str = ''
-    redirect_url: str = ''
 
 @dataclass(slots=True)
 class DeezerConfig:
