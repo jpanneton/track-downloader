@@ -2,7 +2,7 @@ import logging
 import os
 import re
 
-from dataclasses import asdict, dataclass, is_dataclass
+from dataclasses import asdict, dataclass, fields, is_dataclass
 from datetime import datetime
 from pathlib import Path
 from tomlkit.api import dumps as dumps_toml, parse as parse_toml, table as toml_table
@@ -12,6 +12,18 @@ from errors import ConfigurationError
 logger = logging.getLogger(__name__)
 
 CONFIG_PATH = 'config/config.toml'
+
+def build_section(cls, section: str, values):
+    """ Builds a config section, ignoring settings the app no longer knows
+        A leftover setting shouldn't make the whole config unreadable
+    """
+    known = {field.name for field in fields(cls)}
+
+    unknown = sorted(set(values) - known)
+    if unknown:
+        logger.warning(f"Ignoring unknown {section} setting(s): {', '.join(unknown)}")
+
+    return cls(**{name: value for name, value in values.items() if name in known})
 
 def require_settings(section: str, **settings):
     """ Makes sure the given settings are filled in, raises otherwise
@@ -123,13 +135,13 @@ class Config:
                 # Config predating the split, move the credentials out of it
                 cls._migrate_secrets(text)
 
-            downloads = DownloadsConfig(**doc['downloads'])
-            metadata = MetadataConfig(**doc['metadata'])
-            soundcloud = SoundcloudConfig(**doc['soundcloud'])
+            downloads = build_section(DownloadsConfig, 'downloads', doc['downloads'])
+            metadata = build_section(MetadataConfig, 'metadata', doc['metadata'])
+            soundcloud = build_section(SoundcloudConfig, 'soundcloud', doc['soundcloud'])
             # Credential sections only live in the secrets file on a fresh clone
-            spotify = SpotifyConfig(**doc.get('spotify', {}))
-            deezer = DeezerConfig(**doc.get('deezer', {}))
-            qobuz = QobuzConfig(**doc.get('qobuz', {}))
+            spotify = build_section(SpotifyConfig, 'spotify', doc.get('spotify', {}))
+            deezer = build_section(DeezerConfig, 'deezer', doc.get('deezer', {}))
+            qobuz = build_section(QobuzConfig, 'qobuz', doc.get('qobuz', {}))
 
             # Get today's date
             current_date = datetime.now().strftime('%Y-%m-%d')
