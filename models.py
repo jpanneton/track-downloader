@@ -1,5 +1,16 @@
 from dataclasses import dataclass, field
 
+class TrackStatus:
+    """ Outcome of a track in a download run """
+    PENDING = ''
+    DOWNLOADING = 'Downloading'
+    DOWNLOADED = 'Downloaded'
+    # Found nothing to download for this track
+    SKIPPED = 'Skipped'
+    # Downloaded, but the tags didn't match the expected track
+    REJECTED = 'Rejected'
+    FAILED = 'Failed'
+
 @dataclass(slots=True)
 class TrackInfo:
     """ Single track info """

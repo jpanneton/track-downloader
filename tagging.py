@@ -10,7 +10,7 @@ from mutagen.mp3 import MP3 as MutagenMP3
 from pydub import AudioSegment
 
 from config import Config
-from models import TrackInfo
+from models import TrackInfo, TrackStatus
 from utils import (
     REJECTED_FOLDER_NAME,
     download_file,
@@ -93,7 +93,7 @@ def process_flac(config: Config, track_info: TrackInfo, filename):
     if not validate_file(config, track_info, audiofile, filename):
         quarantine_file(config, source_path)
         logger.warning(f"{track_info.name} did not match, moved to '{REJECTED_FOLDER_NAME}'")
-        return
+        return False
 
     audiofile['title'] = track_info.title
     audiofile['artist'] = config.metadata.artist_delimiter.join(track_info.artists)
@@ -120,6 +120,7 @@ def process_flac(config: Config, track_info: TrackInfo, filename):
 
     # Move FLAC from downloads folder
     shutil.move(source_path, destination_path)
+    return True
 
 def process_mp3(config: Config, track_info: TrackInfo, filename):
     """ Generates a properly tagged MP3 """
@@ -137,7 +138,7 @@ def process_mp3(config: Config, track_info: TrackInfo, filename):
     if not validate_file(config, track_info, audiofile, filename):
         quarantine_file(config, source_path)
         logger.warning(f"{track_info.name} did not match, moved to '{REJECTED_FOLDER_NAME}'")
-        return
+        return False
 
     audiofile['title'] = track_info.title
     audiofile['artist'] = config.metadata.artist_delimiter.join(track_info.artists)
@@ -161,6 +162,7 @@ def process_mp3(config: Config, track_info: TrackInfo, filename):
 
     # Move MP3 from downloads folder
     shutil.move(source_path, destination_path)
+    return True
 
 def process_wav(config: Config, track_info: TrackInfo, filename):
     """ Converts a WAV to a properly tagged MP3 """
@@ -210,17 +212,26 @@ def process_wav(config: Config, track_info: TrackInfo, filename):
 
     # Move WAV from downloads folder
     shutil.move(source_path, dest_path_wav)
+    return True
 
 def process_file(config: Config, track_info: TrackInfo, filename):
-    """ Processes a downloaded audio file (MP3 or WAV) """
+    """ Processes a downloaded audio file and reports how it went """
     # Make sure the file exists in the downloads folder
-    if is_file_downloaded(config, filename):
-        # Dispatch the processing to the corrresponding procedure
-        if filename.endswith('.flac'):
-            process_flac(config, track_info, filename)
-        elif filename.endswith('.mp3'):
-            process_mp3(config, track_info, filename)
-        elif filename.endswith('.wav'):
-            process_wav(config, track_info, filename)
-    else:
-        logger.info(f"Missing file {filename}")
+    if not is_file_downloaded(config, filename):
+        logger.error(f"Missing file {filename}")
+        return TrackStatus.FAILED
+
+    # Dispatch the processing to the corrresponding procedure
+    processors = {
+        '.flac': process_flac,
+        '.mp3': process_mp3,
+        '.wav': process_wav
+    }
+    _, extension = os.path.splitext(filename.lower())
+    process = processors.get(extension)
+
+    if not process:
+        logger.error(f"Unsupported file format: {filename}")
+        return TrackStatus.FAILED
+
+    return TrackStatus.DOWNLOADED if process(config, track_info, filename) else TrackStatus.REJECTED
