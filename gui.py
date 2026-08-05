@@ -2,12 +2,15 @@ import logging
 import queue
 import threading
 
+from collections import Counter
+
 from config import Config
 from config_editor import ConfigEditor
 from gui_utils import report_errors, set_window_icon, show_error
 from models import PlaylistInfo, TrackInfo, TrackStatus
 from pipeline import DownloadListener, download_playlist
 from sources import extract_playlist_info
+from utils import REJECTED_FOLDER_NAME
 
 import tkinter as tk
 from tkinter import messagebox, ttk
@@ -200,6 +203,10 @@ def download_playlist_gui(config: Config, playlist_url: str):
     playlist_entry.pack(side=tk.LEFT, padx=10)
     playlist_button.pack(side=tk.LEFT)
 
+    # Progress of the current run (right-aligned)
+    progress_label = ttk.Label(toolbar_frame, text='', width=12, anchor='e')
+    progress_label.pack(side=tk.RIGHT)
+
     # ========== Table View ==========
     tableview = TableView(root, columns=COLUMN_IDS)
     tableview.set_readonly_columns([column_id for column_id, _, _, _, editable in COLUMNS if not editable])
@@ -235,6 +242,10 @@ def download_playlist_gui(config: Config, playlist_url: str):
     events = queue.Queue()
     cancel_event = threading.Event()
 
+    # Progress of the current run and how each track ended
+    progress = {'done': 0, 'total': 0}
+    outcomes = []
+
     # ========== Callbacks ==========
     class GuiListener(DownloadListener):
         """ Reports the progress of a download run to the window
@@ -260,9 +271,29 @@ def download_playlist_gui(config: Config, playlist_url: str):
             widget.configure(state=state)
         cancel_button.configure(state=tk.NORMAL if running else tk.DISABLED)
 
+    def update_progress():
+        """ Shows how many tracks are done out of how many were queued """
+        if not progress['total']:
+            progress_label.configure(text='')
+            return
+
+        progress_label.configure(text=f"{progress['done']} / {progress['total']}")
+
     def start_download(tracks_to_download):
         """ Runs a download on a worker thread so the window stays responsive """
         cancel_event.clear()
+
+        # Reset the outcome of a previous run
+        outcomes.clear()
+        progress['done'] = 0
+        progress['total'] = len(tracks_to_download.get_flat_list())
+        update_progress()
+
+        for track_info in tracks_to_download.get_flat_list():
+            row = rows_by_track.get(id(track_info))
+            if row:
+                set_row_status(tableview, row, TrackStatus.PENDING)
+
         set_running(True)
 
         def run():
@@ -277,8 +308,27 @@ def download_playlist_gui(config: Config, playlist_url: str):
 
     def on_download_finished(error):
         set_running(False)
+
         if error:
             show_error("Download", error)
+            return
+
+        if not outcomes:
+            return
+
+        # Report what happened, the console log has the details
+        counts = Counter(outcomes)
+        summary = ', '.join(f"{counts[status]} {status.lower()}"
+                            for status in (TrackStatus.DOWNLOADED, TrackStatus.SKIPPED,
+                                           TrackStatus.REJECTED, TrackStatus.FAILED)
+                            if counts[status])
+
+        if cancel_event.is_set():
+            summary = f"Cancelled after {len(outcomes)} of {progress['total']} tracks.\n\n{summary}"
+        if counts[TrackStatus.REJECTED]:
+            summary += f"\n\nRejected tracks are kept in '{REJECTED_FOLDER_NAME}'."
+
+        messagebox.showinfo("Download", summary or "Nothing was downloaded.")
 
     def pump_events():
         """ Applies the events posted by the worker thread """
@@ -288,9 +338,16 @@ def download_playlist_gui(config: Config, playlist_url: str):
                 kind = event[0]
 
                 if kind == 'status':
+                    status = event[2]
                     row = rows_by_track.get(event[1])
                     if row:
-                        set_row_status(tableview, row, event[2])
+                        set_row_status(tableview, row, status)
+
+                    # A track is done once it reaches a final status
+                    if status != TrackStatus.DOWNLOADING:
+                        outcomes.append(status)
+                        progress['done'] = len(outcomes)
+                        update_progress()
                 elif kind == 'prompt':
                     messagebox.showinfo("Manual Download", f"{event[1]}\n\nClick OK once done.")
                     event[2].set()
