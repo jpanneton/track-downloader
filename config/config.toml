@@ -23,8 +23,10 @@ artist_delimiter = "; "
 remove_feat_from_title = true
 # Indicates whether or not to use the title of a single as its album or leave the tag blank
 tag_single_album = false
-# Default genre to use when tagging tracks
+# Genre used when neither the playlist nor the download backend provides one
 default_genre = ""
+# Genre forced on every track, leave empty to keep the ones above
+genre_override = ""
 
 [soundcloud]
 # Website names that will be detected as a download gate

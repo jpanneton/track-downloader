@@ -24,6 +24,10 @@ def resolve_genre(config: Config, track_info: TrackInfo, tagged_genre: str):
     """ Picks the genre to tag a track with, from most to least specific
         Backends tag a genre of their own, overwriting it blindly loses it
     """
+    # Forced genre, useful to file a whole library under one of them
+    if config.metadata.genre_override:
+        return config.metadata.genre_override
+
     # Genre known from the playlist or edited in the table view
     if track_info.genre:
         return track_info.genre

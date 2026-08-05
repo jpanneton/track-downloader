@@ -45,7 +45,10 @@ class MetadataConfig:
     artist_delimiter: str
     remove_feat_from_title: bool
     tag_single_album: bool
-    default_genre: str
+    # Applied when nothing else provides a genre
+    default_genre: str = ''
+    # Forced on every track, wins over the playlist and the backend
+    genre_override: str = ''
 
 @dataclass(slots=True)
 class SoundcloudConfig:
