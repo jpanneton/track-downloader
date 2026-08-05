@@ -7,6 +7,21 @@ from errors import TrackDownloaderError, format_error
 
 logger = logging.getLogger(__name__)
 
+class QueueLogHandler(logging.Handler):
+    """ Forwards log records to the window through a queue
+        Records come from the worker thread, widgets can't be touched there
+    """
+    def __init__(self, events, level=logging.INFO):
+        super().__init__(level)
+        self.events = events
+        self.setFormatter(logging.Formatter('%(levelname)s  %(message)s'))
+
+    def emit(self, record):
+        try:
+            self.events.put(('log', self.format(record)))
+        except Exception:
+            self.handleError(record)
+
 def set_window_icon(window):
     """ Sets the window icon, it is missing when running from another folder """
     try:

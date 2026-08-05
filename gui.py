@@ -6,7 +6,7 @@ from collections import Counter
 
 from config import Config
 from config_editor import ConfigEditor
-from gui_utils import report_errors, set_window_icon, show_error
+from gui_utils import QueueLogHandler, report_errors, set_window_icon, show_error
 from models import PlaylistInfo, TrackInfo, TrackStatus
 from pipeline import DownloadListener, download_playlist
 from sources import extract_playlist_info
@@ -33,6 +33,9 @@ COLUMNS = (
 
 COLUMN_IDS = tuple(column[0] for column in COLUMNS)
 STATUS_INDEX = COLUMN_IDS.index('status')
+
+# Lines kept in the log panel, a long run would grow it without bound
+LOG_LINE_LIMIT = 500
 
 # Row tint per outcome, scanning a long playlist by colour is faster than reading
 STATUS_COLOURS = {
@@ -190,6 +193,9 @@ def download_playlist_gui(config: Config, playlist_url: str):
     config_button = ttk.Button(toolbar_frame, text="Config", command=lambda: config_editor.open(root))
     config_button.pack(side=tk.LEFT)
 
+    log_button = ttk.Button(toolbar_frame, text="Show Log", command=lambda: toggle_log())
+    log_button.pack(side=tk.LEFT, padx=(5, 0))
+
     # Playlist controls (centered inside a nested frame)
     playlist_controls_frame = ttk.Frame(toolbar_frame)
     playlist_controls_frame.pack(side=tk.LEFT, expand=True)
@@ -231,6 +237,36 @@ def download_playlist_gui(config: Config, playlist_url: str):
         tableview.tag_configure(status, background=colour)
 
     tableview.pack(expand=True, fill=tk.BOTH, padx=10)
+
+    # ========== Log Panel ==========
+    log_frame = ttk.Frame(root)
+    log_text = tk.Text(log_frame, height=8, wrap=tk.NONE, state=tk.DISABLED)
+    log_scroll = ttk.Scrollbar(log_frame, orient=tk.VERTICAL, command=log_text.yview)
+    log_text.configure(yscrollcommand=log_scroll.set)
+
+    log_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+    log_text.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
+
+    def append_log(line):
+        """ Appends a line to the log panel, keeping only the recent ones """
+        log_text.configure(state=tk.NORMAL)
+        log_text.insert(tk.END, line + '\n')
+
+        # Drop the oldest lines so a long run doesn't grow without bound
+        extra = int(log_text.index('end-1c').split('.')[0]) - LOG_LINE_LIMIT
+        if extra > 0:
+            log_text.delete('1.0', f'{extra + 1}.0')
+
+        log_text.see(tk.END)
+        log_text.configure(state=tk.DISABLED)
+
+    def toggle_log():
+        if log_frame.winfo_ismapped():
+            log_frame.pack_forget()
+            log_button.configure(text="Show Log")
+        else:
+            log_frame.pack(fill=tk.BOTH, padx=10, pady=(5, 0))
+            log_button.configure(text="Hide Log")
 
     # Global playlist info
     playlist_info = PlaylistInfo()
@@ -351,6 +387,8 @@ def download_playlist_gui(config: Config, playlist_url: str):
                 elif kind == 'prompt':
                     messagebox.showinfo("Manual Download", f"{event[1]}\n\nClick OK once done.")
                     event[2].set()
+                elif kind == 'log':
+                    append_log(event[1])
                 elif kind == 'done':
                     on_download_finished(event[1])
         except queue.Empty:
@@ -422,6 +460,10 @@ def download_playlist_gui(config: Config, playlist_url: str):
     download_all_button.pack(side=tk.LEFT, padx=10)
     cancel_button.pack(side=tk.LEFT, padx=10)
     download_buttons_frame.pack(padx=10, pady=10)
+
+    # Mirror the console log into the panel
+    log_handler = QueueLogHandler(events)
+    logging.getLogger().addHandler(log_handler)
 
     # Start pumping worker events, then the main loop
     root.after(100, pump_events)
