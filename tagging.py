@@ -20,6 +20,20 @@ from utils import (
 
 logger = logging.getLogger(__name__)
 
+def resolve_genre(config: Config, track_info: TrackInfo, tagged_genre: str):
+    """ Picks the genre to tag a track with, from most to least specific
+        Backends tag a genre of their own, overwriting it blindly loses it
+    """
+    # Genre known from the playlist or edited in the table view
+    if track_info.genre:
+        return track_info.genre
+
+    # Genre the backend already tagged the file with
+    if tagged_genre:
+        return tagged_genre
+
+    return config.metadata.default_genre
+
 def validate_file(config: Config, track_info: TrackInfo, track_metadata, filename):
     def extract_before_delimiter(s: str):
         return re.split(r'[\[\{\(\-\&\,]', s, maxsplit=1)[0].strip()
@@ -84,8 +98,12 @@ def process_flac(config: Config, track_info: TrackInfo, filename):
     # DATE is the standard Vorbis comment, YEAR is kept for players that only read it
     audiofile['date'] = track_info.year
     audiofile['year'] = track_info.year
-    audiofile['genre'] = track_info.genre
     audiofile['tracknumber'] = str(track_info.number)
+
+    genre = resolve_genre(config, track_info, ' '.join(audiofile.get('genre', [])))
+    if genre:
+        audiofile['genre'] = genre
+
     audiofile.save()
 
     # Check if the file has expected quality
@@ -122,8 +140,11 @@ def process_mp3(config: Config, track_info: TrackInfo, filename):
     audiofile['album'] = track_info.album
     audiofile['albumartist'] = config.metadata.artist_delimiter.join(track_info.album_artists)
     audiofile['date'] = track_info.year
-    audiofile['genre'] = track_info.genre
     audiofile['tracknumber'] = str(track_info.number)
+
+    genre = resolve_genre(config, track_info, ' '.join(audiofile.get('genre', [])))
+    if genre:
+        audiofile['genre'] = genre
     audiofile.save(v1=1, v2_version=3)
 
     # Check if the file has expected quality
@@ -160,7 +181,8 @@ def process_wav(config: Config, track_info: TrackInfo, filename):
         'album': track_info.album,
         'albumartist': config.metadata.artist_delimiter.join(track_info.album_artists),
         'date': track_info.year,
-        'genre': track_info.genre,
+        # A WAV carries no tags of its own to preserve
+        'genre': resolve_genre(config, track_info, ''),
         'track': track_info.number
     }
 
