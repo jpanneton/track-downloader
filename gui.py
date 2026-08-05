@@ -1,8 +1,10 @@
 import logging
+import queue
+import threading
 
 from config import Config
 from config_editor import ConfigEditor
-from gui_utils import report_errors, set_window_icon
+from gui_utils import report_errors, set_window_icon, show_error
 from models import PlaylistInfo, TrackInfo, TrackStatus
 from pipeline import DownloadListener, download_playlist
 from sources import extract_playlist_info
@@ -229,18 +231,75 @@ def download_playlist_gui(config: Config, playlist_url: str):
     # Row of each track, TrackInfo isn't hashable so it is keyed by identity
     rows_by_track = {}
 
+    # Downloads run off the main thread, every widget update goes through here
+    events = queue.Queue()
+    cancel_event = threading.Event()
+
     # ========== Callbacks ==========
     class GuiListener(DownloadListener):
-        """ Reports the progress of a download run to the window """
+        """ Reports the progress of a download run to the window
+            Runs on the worker thread, so it may only post events
+        """
 
         def prompt(self, message):
-            # A console prompt would be invisible and freeze the window
-            messagebox.showinfo("Manual Download", f"{message}\n\nClick OK once done.")
+            # Block the download until the dialog is acknowledged
+            acknowledged = threading.Event()
+            events.put(('prompt', message, acknowledged))
+            acknowledged.wait()
 
         def track_status(self, track_info, status):
-            row = rows_by_track.get(id(track_info))
-            if row:
-                set_row_status(tableview, row, status)
+            events.put(('status', id(track_info), status))
+
+        def is_cancelled(self):
+            return cancel_event.is_set()
+
+    def set_running(running):
+        """ Keeps the window out of a state a running download can't handle """
+        state = tk.DISABLED if running else tk.NORMAL
+        for widget in (playlist_button, download_selected_button, download_all_button, config_button):
+            widget.configure(state=state)
+        cancel_button.configure(state=tk.NORMAL if running else tk.DISABLED)
+
+    def start_download(tracks_to_download):
+        """ Runs a download on a worker thread so the window stays responsive """
+        cancel_event.clear()
+        set_running(True)
+
+        def run():
+            error = None
+            try:
+                download_playlist(config, tracks_to_download, GuiListener())
+            except Exception as e:
+                error = e
+            events.put(('done', error))
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def on_download_finished(error):
+        set_running(False)
+        if error:
+            show_error("Download", error)
+
+    def pump_events():
+        """ Applies the events posted by the worker thread """
+        try:
+            while True:
+                event = events.get_nowait()
+                kind = event[0]
+
+                if kind == 'status':
+                    row = rows_by_track.get(event[1])
+                    if row:
+                        set_row_status(tableview, row, event[2])
+                elif kind == 'prompt':
+                    messagebox.showinfo("Manual Download", f"{event[1]}\n\nClick OK once done.")
+                    event[2].set()
+                elif kind == 'done':
+                    on_download_finished(event[1])
+        except queue.Empty:
+            pass
+
+        root.after(100, pump_events)
 
     @report_errors("Load Playlist")
     def on_load_playlist():
@@ -277,7 +336,7 @@ def download_playlist_gui(config: Config, playlist_url: str):
             return
 
         # Download selected tracks
-        download_playlist(config, PlaylistInfo.from_flat_list(selected_track_infos), GuiListener())
+        start_download(PlaylistInfo.from_flat_list(selected_track_infos))
 
     @report_errors("Download")
     def on_download_all():
@@ -289,16 +348,24 @@ def download_playlist_gui(config: Config, playlist_url: str):
             messagebox.showinfo("Download", "Load a playlist first.")
             return
 
-        download_playlist(config, playlist_info, GuiListener())
+        start_download(playlist_info)
+
+    def on_cancel():
+        # The current track finishes, the next one won't start
+        cancel_event.set()
+        cancel_button.configure(state=tk.DISABLED)
 
     # ========== Download Buttons ==========
     download_buttons_frame = ttk.Frame(root)
     download_selected_button = ttk.Button(download_buttons_frame, text="Download Selected", command=on_download_selected)
     download_all_button = ttk.Button(download_buttons_frame, text="Download All", command=on_download_all)
+    cancel_button = ttk.Button(download_buttons_frame, text="Cancel", command=on_cancel, state=tk.DISABLED)
 
     download_selected_button.pack(side=tk.LEFT, padx=10)
     download_all_button.pack(side=tk.LEFT, padx=10)
+    cancel_button.pack(side=tk.LEFT, padx=10)
     download_buttons_frame.pack(padx=10, pady=10)
 
-    # Start main loop
+    # Start pumping worker events, then the main loop
+    root.after(100, pump_events)
     root.mainloop()
