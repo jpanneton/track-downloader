@@ -62,7 +62,9 @@ Each track shows its outcome in the **Status** column, with the row tinted to ma
 | Rejected | downloaded but the tags didn't match, kept in `_rejected/` |
 | Failed | the download or the tagging raised an error |
 
-Downloads run in the background, so the window stays usable and can be stopped with **Cancel** (the track in progress finishes first). A counter shows the progress and a summary is shown at the end. **Show Log** opens a panel with the messages that otherwise only reach the console, and **Open Folder** reveals the exported files. Double-clicking the status of a rejected track opens the folder it was kept in.
+Attributes can be set on several tracks at once with the bar under the table: pick an attribute, type a value and click **Apply** to write it to every selected track. It defaults to the genre, prefilled from the config.
+
+Downloads run in the background, so the window stays usable and can be stopped with **Cancel** (the track in progress finishes first). A counter shows the progress and a summary is shown at the end. The log panel below the table shows the messages that otherwise only reach the console and can be hidden with **Hide Log**, and **Open Folder** reveals the exported files. Double-clicking the status of a rejected track opens the folder it was kept in.
 
 ## Errors
 
