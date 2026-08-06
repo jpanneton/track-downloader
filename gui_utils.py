@@ -24,10 +24,10 @@ THEME_COLOURS = {
 }
 
 # What the theme setting accepts, 'system' resolves to light or dark
-THEMES = ('system', 'classic', 'light', 'dark')
+THEMES = ('classic', 'system', 'light', 'dark')
 
 # Theme applied to this window, the colours above are picked from it
-_applied_theme = 'light'
+_applied_theme = 'classic'
 
 def resolve_theme(preference: str):
     """ Turns the configured preference into the theme to actually apply """
@@ -71,7 +71,7 @@ def apply_theme(preference: str):
 
 def theme_colours():
     """ Colours of the theme in use, for widgets ttk leaves alone """
-    return THEME_COLOURS.get(_applied_theme, THEME_COLOURS['light'])
+    return THEME_COLOURS.get(_applied_theme, THEME_COLOURS['classic'])
 
 def restore_window_layout(window):
     """ Restores the size and position the window was last closed with """

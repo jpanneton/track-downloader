@@ -29,9 +29,9 @@ default_genre = ""
 genre_override = ""
 
 [interface]
-# Appearance of the window ('system', 'classic', 'light', 'dark')
-# 'system' follows the Windows light/dark setting, 'classic' is the plain look
-theme = "system"
+# Appearance of the window ('classic', 'system', 'light', 'dark')
+# 'classic' is the plain look, 'system' follows the Windows light/dark setting
+theme = "classic"
 
 [soundcloud]
 # Website names that will be detected as a download gate

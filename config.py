@@ -126,7 +126,7 @@ class MetadataConfig:
 
 @dataclass(slots=True)
 class InterfaceConfig:
-    theme: str = 'system'
+    theme: str = 'classic'
 
 @dataclass(slots=True)
 class SoundcloudConfig:
