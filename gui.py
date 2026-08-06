@@ -213,7 +213,7 @@ def download_playlist_gui(config: Config, playlist_url: str):
     config_button = ttk.Button(toolbar_frame, text="Config", command=lambda: config_editor.open(root))
     config_button.pack(side=tk.LEFT)
 
-    log_button = ttk.Button(toolbar_frame, text="Show Log", command=lambda: toggle_log())
+    log_button = ttk.Button(toolbar_frame, text="Hide Log", command=lambda: toggle_log())
     log_button.pack(side=tk.LEFT, padx=(5, 0))
 
     # Playlist controls (centered inside a nested frame)
@@ -281,13 +281,18 @@ def download_playlist_gui(config: Config, playlist_url: str):
         log_text.see(tk.END)
         log_text.configure(state=tk.DISABLED)
 
-    def toggle_log():
-        if log_frame.winfo_ismapped():
-            log_frame.pack_forget()
-            log_button.configure(text="Show Log")
+    def show_log(visible):
+        if visible:
+            # Keep the panel between the table and the buttons, packing it
+            # without a reference would drop it below them
+            log_frame.pack(fill=tk.BOTH, padx=10, pady=(5, 0), before=download_buttons_frame)
         else:
-            log_frame.pack(fill=tk.BOTH, padx=10, pady=(5, 0))
-            log_button.configure(text="Hide Log")
+            log_frame.pack_forget()
+
+        log_button.configure(text="Hide Log" if visible else "Show Log")
+
+    def toggle_log():
+        show_log(not log_frame.winfo_ismapped())
 
     # Global playlist info
     playlist_info = PlaylistInfo()
@@ -524,9 +529,11 @@ def download_playlist_gui(config: Config, playlist_url: str):
 
     tableview.on_readonly_double_click = on_status_click
 
-    # Mirror the console log into the panel
+    # Mirror the console log into the panel, shown by default so warnings
+    # such as a rejected track don't go unnoticed
     log_handler = QueueLogHandler(events)
     logging.getLogger().addHandler(log_handler)
+    show_log(True)
 
     def on_close():
         save_window_layout(root)
