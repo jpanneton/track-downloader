@@ -42,6 +42,12 @@ COLUMNS = (
 COLUMN_IDS = tuple(column[0] for column in COLUMNS)
 STATUS_INDEX = COLUMN_IDS.index('status')
 
+# Attributes the batch editor can overwrite, keyed by the heading it shows
+EDITABLE_COLUMNS = {
+    heading: column_id
+    for column_id, heading, _, _, editable in COLUMNS if editable
+}
+
 # Lines kept in the log panel, a long run would grow it without bound
 LOG_LINE_LIMIT = 500
 
@@ -259,6 +265,36 @@ def download_playlist_gui(config: Config, playlist_url: str):
 
     tableview.pack(expand=True, fill=tk.BOTH, padx=10)
 
+    # ========== Batch Editor ==========
+    # The genre is the one worth setting in bulk, the backends report their own
+    default_genre = config.metadata.genre_override or config.metadata.default_genre
+
+    edit_frame = ttk.Frame(root)
+    ttk.Label(edit_frame, text="Set").pack(side=tk.LEFT)
+
+    edit_column = ttk.Combobox(edit_frame, values=list(EDITABLE_COLUMNS), state="readonly", width=14)
+    edit_column.set("Genre")
+    edit_column.pack(side=tk.LEFT, padx=5)
+
+    ttk.Label(edit_frame, text="of the selected tracks to").pack(side=tk.LEFT)
+
+    edit_value = ttk.Entry(edit_frame, width=30)
+    edit_value.insert(0, default_genre)
+    edit_value.pack(side=tk.LEFT, padx=5)
+
+    apply_button = ttk.Button(edit_frame, text="Apply", command=lambda: on_apply_edit())
+    apply_button.pack(side=tk.LEFT)
+
+    edit_frame.pack(fill=tk.X, padx=10, pady=(8, 0))
+
+    def on_edit_column_changed(*ignore):
+        # Only the genre has a sensible value to suggest
+        edit_value.delete(0, tk.END)
+        if EDITABLE_COLUMNS[edit_column.get()] == 'genre':
+            edit_value.insert(0, default_genre)
+
+    edit_column.bind('<<ComboboxSelected>>', on_edit_column_changed)
+
     # ========== Log Panel ==========
     log_frame = ttk.Frame(root)
     log_text = tk.Text(log_frame, height=8, wrap=tk.NONE, state=tk.DISABLED)
@@ -329,7 +365,8 @@ def download_playlist_gui(config: Config, playlist_url: str):
     def set_running(running):
         """ Keeps the window out of a state a running download can't handle """
         state = tk.DISABLED if running else tk.NORMAL
-        for widget in (playlist_button, download_selected_button, download_all_button, config_button):
+        for widget in (playlist_button, download_selected_button, download_all_button,
+                       config_button, apply_button):
             widget.configure(state=state)
         cancel_button.configure(state=tk.NORMAL if running else tk.DISABLED)
 
@@ -475,6 +512,34 @@ def download_playlist_gui(config: Config, playlist_url: str):
         # The current track finishes, the next one won't start
         cancel_event.set()
         cancel_button.configure(state=tk.DISABLED)
+
+    @report_errors("Batch Edit")
+    def on_apply_edit():
+        rows = tableview.selection()
+        if not rows:
+            messagebox.showinfo("Batch Edit", "Select at least one track to edit.")
+            return
+
+        heading = edit_column.get()
+        column_id = EDITABLE_COLUMNS[heading]
+        column_index = COLUMN_IDS.index(column_id)
+        value = edit_value.get()
+
+        for row in rows:
+            values = list(tableview.item(row, 'values'))
+            values[column_index] = value
+            tableview.item(row, values=values)
+
+        logger.info(f"Set {heading.lower()} of {len(rows)} track(s) to '{value}'")
+
+        # The edit would be silently ignored while an override is configured
+        if column_id == 'genre' and config.metadata.genre_override:
+            messagebox.showwarning(
+                "Batch Edit",
+                f"genre_override is set to '{config.metadata.genre_override}' in the config, "
+                "so it is used instead of the genre set here.\n\n"
+                "Clear it in the config to tag the genres from this table."
+            )
 
     def on_select_all(*ignore):
         tableview.selection_set(tableview.get_children())
