@@ -46,12 +46,14 @@ STATUS_INDEX = COLUMN_IDS.index('status')
 LOG_LINE_LIMIT = 500
 
 # Row tint per outcome, scanning a long playlist by colour is faster than reading
+# The hues are saturated enough to tell apart at a glance while keeping the
+# black text readable, paler tints made 'Downloaded' and 'Skipped' look alike
 STATUS_COLOURS = {
-    TrackStatus.DOWNLOADING: '#e3f2fd',
-    TrackStatus.DOWNLOADED:  '#e8f5e9',
-    TrackStatus.SKIPPED:     '#eceff1',
-    TrackStatus.REJECTED:    '#fff4e5',
-    TrackStatus.FAILED:      '#fdecea'
+    TrackStatus.DOWNLOADING: '#90caf9',
+    TrackStatus.DOWNLOADED:  '#7cc47f',
+    TrackStatus.SKIPPED:     '#c3ccd1',
+    TrackStatus.REJECTED:    '#ffb74d',
+    TrackStatus.FAILED:      '#e57373'
 }
 
 class EntryPopup(ttk.Entry):
@@ -250,9 +252,10 @@ def download_playlist_gui(config: Config, playlist_url: str):
 
     tableview['show'] = 'headings'
 
-    # Tint each row according to how its download went
+    # Tint each row according to how its download went, the text colour is
+    # pinned so a dark system theme doesn't put light text on these tints
     for status, colour in STATUS_COLOURS.items():
-        tableview.tag_configure(status, background=colour)
+        tableview.tag_configure(status, background=colour, foreground='#000000')
 
     tableview.pack(expand=True, fill=tk.BOTH, padx=10)
 
