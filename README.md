@@ -53,7 +53,7 @@ Without `--url`, the `playlist_url` set in the config is used. Note: the command
 
 ## Interface
 
-The window uses the Sun Valley theme and follows the Windows light/dark setting. Set `theme` in `config.toml` to `light` or `dark` to force one.
+The window uses the Sun Valley theme and follows the Windows light/dark setting. `theme` in `config.toml` also accepts `light`, `dark`, or `classic` for the plain look it had before theming. It is applied when the app starts.
 
 
 Each track shows its outcome in the **Status** column, with the row tinted to match:
