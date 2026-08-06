@@ -203,13 +203,12 @@ class ConfigEditor:
                 messagebox.showerror("Invalid Value", format_error(e))
                 return
 
-            # Mutate the original config in place
-            self.config.downloads = config.downloads
-            self.config.metadata = config.metadata
-            self.config.soundcloud = config.soundcloud
-            self.config.spotify = config.spotify
-            self.config.deezer = config.deezer
-            self.config.qobuz = config.qobuz
+            previous_theme = self.config.interface.theme
+
+            # Mutate the original config in place, the window holds a reference
+            # to it. Copying every section keeps a new one from being forgotten.
+            for field in fields(config):
+                setattr(self.config, field.name, getattr(config, field.name))
 
             # Update config file
             try:
@@ -217,6 +216,13 @@ class ConfigEditor:
             except Exception as e:
                 messagebox.showerror("Save Config", format_error(e))
                 return
+
+            # The theme is applied to widgets as they are built
+            if self.config.interface.theme != previous_theme:
+                messagebox.showinfo(
+                    "Config",
+                    "The theme is applied the next time the app is started."
+                )
 
             # Close window
             self.close()
