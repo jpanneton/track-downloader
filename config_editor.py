@@ -8,9 +8,12 @@ from tkinter import ttk, font, messagebox
 
 from backends import BACKENDS, create_backend
 
-from config import Config
+from config import Config, load_setting_descriptions
 from errors import format_error
 from gui_utils import set_window_icon
+
+# Width the explanation of a setting wraps at
+DESCRIPTION_WRAP = 560
 
 # Generates a Config instance based on the state of the controls
 def generate_config_from_dict(cls, widget_dict):
@@ -53,13 +56,18 @@ class ConfigEditor:
         self.config = config
         self.window = None
         self.dict = {}
+        # What each setting does, only the config files explain it
+        self.descriptions = load_setting_descriptions()
 
-    def add_config_row(self, parent, label_text, var):
-        # Container
-        frame = ttk.Frame(parent)
-        frame.pack(fill='x', pady=2)
+    def add_config_row(self, parent, label_text, var, description=''):
+        # Container for the setting and its explanation
+        container = ttk.Frame(parent)
+        container.pack(fill='x', pady=(4, 0))
 
-        # Left label
+        frame = ttk.Frame(container)
+        frame.pack(fill='x')
+
+        # Left label, the TOML key so it maps to the file being edited
         label = ttk.Label(frame, text=label_text, width=25, anchor='w')
         label.pack(side='left')
 
@@ -88,7 +96,18 @@ class ConfigEditor:
             entry = ttk.Entry(frame, textvariable=var, width=50)
             entry.pack(side='left')
 
-    def build_form(self, parent, config):
+        # What the setting does, taken from the comment in the config file
+        if description:
+            hint = ttk.Label(
+                container,
+                text=description,
+                foreground='#666666',
+                wraplength=DESCRIPTION_WRAP,
+                justify='left'
+            )
+            hint.pack(anchor='w', padx=(8, 0))
+
+    def build_form(self, parent, config, section=''):
         # Get default font
         default_font = font.nametofont('TkTextFont').actual()
         font_family = default_font['family']
@@ -107,8 +126,8 @@ class ConfigEditor:
                 subframe = ttk.Frame(parent, borderwidth=1, padding=5)
                 subframe.pack(fill='x', padx=10, pady=2)
 
-                # Build section
-                dict[field.name] = self.build_form(subframe, value)
+                # Build section, its name is how the settings are documented
+                dict[field.name] = self.build_form(subframe, value, field.name)
             else:
                 # Add attribute to section
                 if isinstance(value, list):
@@ -117,7 +136,9 @@ class ConfigEditor:
                     var = tk.BooleanVar(value=value)
                 else:
                     var = tk.StringVar(value=value)
-                self.add_config_row(parent, field.name, var)
+
+                description = self.descriptions.get(section, {}).get(field.name, '')
+                self.add_config_row(parent, field.name, var, description)
                 dict[field.name] = var
         return dict
 
@@ -125,6 +146,8 @@ class ConfigEditor:
         return generate_config_from_dict(type(self.config), self.dict)
 
     def close(self):
+        # The wheel binding is global while hovering, it must not outlive us
+        self.window.unbind_all('<MouseWheel>')
         self.window.destroy()
         self.window = None
         self.dict = {}
@@ -132,10 +155,40 @@ class ConfigEditor:
     def open(self, root):
         self.window = tk.Toplevel(root)
         self.window.title("Config Editor")
-        self.window.resizable(False, False)
+        self.window.resizable(False, True)
         set_window_icon(self.window)
 
-        self.dict = self.build_form(self.window, self.config)
+        # The form is taller than some screens, keep the buttons reachable
+        canvas = tk.Canvas(self.window, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(self.window, orient='vertical', command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        form = ttk.Frame(canvas, padding=(10, 0))
+        form_window = canvas.create_window((0, 0), window=form, anchor='nw')
+
+        def on_form_resized(*ignore):
+            canvas.configure(scrollregion=canvas.bbox('all'))
+            # Grow the form to the canvas so the rows fill the width
+            canvas.itemconfigure(form_window, width=canvas.winfo_width())
+
+            # Only take the height the form needs, up to what fits on screen
+            height = min(form.winfo_reqheight(), int(self.window.winfo_screenheight() * 0.7))
+            canvas.configure(width=form.winfo_reqwidth(), height=height)
+
+        form.bind('<Configure>', on_form_resized)
+        canvas.bind('<Configure>', on_form_resized)
+
+        def on_mouse_wheel(event):
+            canvas.yview_scroll(-event.delta // 120, 'units')
+
+        # Bound only while hovering, a global binding would outlive the window
+        canvas.bind('<Enter>', lambda *ignore: canvas.bind_all('<MouseWheel>', on_mouse_wheel))
+        canvas.bind('<Leave>', lambda *ignore: canvas.unbind_all('<MouseWheel>'))
+
+        scrollbar.pack(side='right', fill='y')
+        canvas.pack(side='top', fill='both', expand=True)
+
+        self.dict = self.build_form(form, self.config)
 
         def on_cancel():
             self.close()
@@ -166,9 +219,9 @@ class ConfigEditor:
             # Close window
             self.close()
 
-        # Button container
+        # Button container, anchored at the bottom so scrolling never hides it
         button_frame = ttk.Frame(self.window)
-        button_frame.pack(pady=10)
+        button_frame.pack(side='bottom', pady=10)
 
         # Cancel button (left)
         ttk.Button(button_frame, text="Cancel", command=on_cancel).pack(side=tk.LEFT, padx=(0, 5))

@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass, fields, is_dataclass
 from datetime import datetime
 from pathlib import Path
 from tomlkit.api import dumps as dumps_toml, parse as parse_toml, table as toml_table
+from tomlkit.items import Comment, Whitespace
 
 from errors import ConfigurationError
 
@@ -40,6 +41,43 @@ def require_settings(section: str, **settings):
 # Credentials live in their own file so the shared config can stay in git
 SECRETS_PATH = 'config/secrets.toml'
 SECRET_SECTIONS = ('spotify', 'deezer', 'qobuz')
+
+# Saving rewrites secrets.toml without comments, the template keeps them
+SECRETS_TEMPLATE_PATH = 'config/secrets.toml.example'
+
+def load_setting_descriptions():
+    """ Reads the comment documenting each setting, keyed by section and name
+        The config files are the only place these explanations are written down
+    """
+    descriptions = {}
+
+    for toml_path in (CONFIG_PATH, SECRETS_TEMPLATE_PATH):
+        try:
+            doc = parse_toml(Path(toml_path).read_text(encoding='utf-8'))
+        except (OSError, ValueError) as e:
+            logger.debug(f"Could not read the settings documented in {toml_path}: {e}")
+            continue
+
+        for section_name, table in doc.items():
+            body = getattr(getattr(table, 'value', None), 'body', None)
+            if body is None:
+                continue
+
+            section = descriptions.setdefault(section_name, {})
+
+            # A setting is documented by the comment lines right above it
+            pending = []
+            for key, item in body:
+                if isinstance(item, Comment):
+                    pending.append(item.as_string().lstrip('#').strip())
+                elif isinstance(item, Whitespace):
+                    pending.clear()
+                elif key is not None:
+                    if pending:
+                        section.setdefault(str(key.key), ' '.join(pending))
+                    pending = []
+
+    return descriptions
 
 @dataclass(slots=True)
 class DownloadsConfig:
