@@ -29,8 +29,8 @@ default_genre = ""
 genre_override = ""
 
 [interface]
-# Appearance of the window ('system', 'light', 'dark')
-# 'system' follows the Windows light/dark setting
+# Appearance of the window ('system', 'classic', 'light', 'dark')
+# 'system' follows the Windows light/dark setting, 'classic' is the plain look
 theme = "system"
 
 [soundcloud]

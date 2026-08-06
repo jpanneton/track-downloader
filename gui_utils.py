@@ -16,10 +16,18 @@ logger = logging.getLogger(__name__)
 LAYOUT_PATH = Path('config/layout.json')
 
 # Colours for the widgets ttk doesn't style, taken from the theme itself
+# 'classic' keeps the widget defaults, which is how the window used to look
 THEME_COLOURS = {
-    'light': {'background': '#fafafa', 'foreground': '#1c1c1c', 'muted': '#666666'},
-    'dark':  {'background': '#1c1c1c', 'foreground': '#fafafa', 'muted': '#9e9e9e'}
+    'classic': {'background': 'SystemWindow', 'foreground': 'SystemWindowText', 'muted': '#666666'},
+    'light':   {'background': '#fafafa', 'foreground': '#1c1c1c', 'muted': '#666666'},
+    'dark':    {'background': '#1c1c1c', 'foreground': '#fafafa', 'muted': '#9e9e9e'}
 }
+
+# What the theme setting accepts, 'system' resolves to light or dark
+THEMES = ('system', 'classic', 'light', 'dark')
+
+# Theme applied to this window, the colours above are picked from it
+_applied_theme = 'light'
 
 def resolve_theme(preference: str):
     """ Turns the configured preference into the theme to actually apply """
@@ -46,21 +54,24 @@ def resolve_theme(preference: str):
 
 def apply_theme(preference: str):
     """ Applies the window theme and returns the one that ended up being used """
+    global _applied_theme
+
     theme = resolve_theme(preference)
 
-    try:
-        sv_ttk.set_theme(theme)
-    except Exception as e:
-        logger.warning(f"Could not apply the {theme} theme: {format_error(e)}")
+    # 'classic' is the plain ttk look the window had before it was themed
+    if theme != 'classic':
+        try:
+            sv_ttk.set_theme(theme)
+        except Exception as e:
+            logger.warning(f"Could not apply the {theme} theme: {format_error(e)}")
+            theme = 'classic'
 
+    _applied_theme = theme
     return theme
 
 def theme_colours():
     """ Colours of the theme in use, for widgets ttk leaves alone """
-    try:
-        return THEME_COLOURS[sv_ttk.get_theme()]
-    except Exception:
-        return THEME_COLOURS['light']
+    return THEME_COLOURS.get(_applied_theme, THEME_COLOURS['light'])
 
 def restore_window_layout(window):
     """ Restores the size and position the window was last closed with """

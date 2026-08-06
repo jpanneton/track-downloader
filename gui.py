@@ -59,6 +59,13 @@ LOG_LINE_LIMIT = 500
 # The hues are saturated enough to tell apart at a glance while keeping the
 # text readable, paler tints made 'Downloaded' and 'Skipped' look alike
 STATUS_COLOURS = {
+    'classic': {
+        TrackStatus.DOWNLOADING: '#90caf9',
+        TrackStatus.DOWNLOADED:  '#7cc47f',
+        TrackStatus.SKIPPED:     '#c3ccd1',
+        TrackStatus.REJECTED:    '#ffb74d',
+        TrackStatus.FAILED:      '#e57373'
+    },
     'light': {
         TrackStatus.DOWNLOADING: '#90caf9',
         TrackStatus.DOWNLOADED:  '#7cc47f',
@@ -76,7 +83,7 @@ STATUS_COLOURS = {
 }
 
 # Text on the tints above, the light ones are too bright for white text
-STATUS_TEXT_COLOURS = {'light': '#000000', 'dark': '#ffffff'}
+STATUS_TEXT_COLOURS = {'classic': '#000000', 'light': '#000000', 'dark': '#ffffff'}
 
 class EntryPopup(ttk.Entry):
     """ Text entry widget that gets displayed to edit TableView cells """
