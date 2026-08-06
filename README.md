@@ -53,6 +53,9 @@ Without `--url`, the `playlist_url` set in the config is used. Note: the command
 
 ## Interface
 
+The window uses the Sun Valley theme and follows the Windows light/dark setting. Set `theme` in `config.toml` to `light` or `dark` to force one.
+
+
 Each track shows its outcome in the **Status** column, with the row tinted to match:
 
 | Status | Meaning |
