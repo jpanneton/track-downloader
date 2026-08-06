@@ -48,6 +48,8 @@ EDITABLE_COLUMNS = {
     for column_id, heading, _, _, editable in COLUMNS if editable
 }
 
+WINDOW_TITLE = "Track Downloader"
+
 # Lines kept in the log panel, a long run would grow it without bound
 LOG_LINE_LIMIT = 500
 
@@ -180,12 +182,15 @@ def set_row_status(tableview: TableView, row, status: str):
     values[STATUS_INDEX] = status
     tableview.item(row, values=values, tags=(status,) if status else ())
 
-def update_playlist_info(config: Config, tableview: TableView, playlist_info: PlaylistInfo):
-    """ Updates playlist info using current table view data """
-    row_index = 0
+def update_playlist_info(config: Config, tableview: TableView, tracks_by_row):
+    """ Updates track infos using current table view data
+        Rows are matched by identity, sorting the table reorders them
+    """
+    for row in tableview.get_children():
+        track_info = tracks_by_row.get(row)
+        if not track_info:
+            continue
 
-    for track_info in playlist_info.get_flat_list():
-        row = tableview.get_children()[row_index]
         values = tableview.item(row, 'values')
         assert(len(values) == len(COLUMN_IDS))
         assert(values[COLUMN_IDS.index('category')] == track_info.category)
@@ -199,45 +204,41 @@ def update_playlist_info(config: Config, tableview: TableView, playlist_info: Pl
         track_info.number = values[6]
         track_info.genre = values[7]
 
-        row_index += 1
-
 def download_playlist_gui(config: Config, playlist_url: str):
     """ Downloads a playlist (graphical version) """
     # Create window
     root = tk.Tk()
-    root.title("Track Downloader")
+    root.title(WINDOW_TITLE)
     root.minsize(640, 480)
     set_window_icon(root)
     restore_window_layout(root)
 
     # ========== Toolbar ==========
+    # The playlist URL is the starting point, the rest are utilities
     toolbar_frame = ttk.Frame(root)
-    toolbar_frame.pack(fill=tk.X, padx=10, pady=5)
+    toolbar_frame.pack(fill=tk.X, padx=10, pady=(8, 4))
 
-    # Config Button (left-aligned)
     config_editor = ConfigEditor(config)
     config_button = ttk.Button(toolbar_frame, text="Config", command=lambda: config_editor.open(root))
-    config_button.pack(side=tk.LEFT)
-
     log_button = ttk.Button(toolbar_frame, text="Hide Log", command=lambda: toggle_log())
-    log_button.pack(side=tk.LEFT, padx=(5, 0))
+    open_folder_button = ttk.Button(toolbar_frame, text="Open Folder", command=lambda: on_open_downloads())
 
-    # Playlist controls (centered inside a nested frame)
-    playlist_controls_frame = ttk.Frame(toolbar_frame)
-    playlist_controls_frame.pack(side=tk.LEFT, expand=True)
+    # Packed first so they keep their size when the entry grows
+    log_button.pack(side=tk.RIGHT)
+    open_folder_button.pack(side=tk.RIGHT, padx=5)
+    config_button.pack(side=tk.RIGHT)
 
-    playlist_label = ttk.Label(playlist_controls_frame, text="Playlist URL")
-    playlist_entry = ttk.Entry(playlist_controls_frame, width=70)
+    ttk.Label(toolbar_frame, text="Playlist URL").pack(side=tk.LEFT)
+
+    playlist_entry = ttk.Entry(toolbar_frame)
     playlist_entry.insert(0, playlist_url)
-    playlist_button = ttk.Button(playlist_controls_frame, text="Load", command=lambda: on_load_playlist())
+    playlist_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=8)
 
-    playlist_label.pack(side=tk.LEFT)
-    playlist_entry.pack(side=tk.LEFT, padx=10)
-    playlist_button.pack(side=tk.LEFT)
+    playlist_button = ttk.Button(toolbar_frame, text="Load", command=lambda: on_load_playlist())
+    playlist_button.pack(side=tk.LEFT, padx=(0, 15))
 
-    # Progress of the current run (right-aligned)
-    progress_label = ttk.Label(toolbar_frame, text='', width=12, anchor='e')
-    progress_label.pack(side=tk.RIGHT)
+    # Loading is the obvious thing to do after typing a URL
+    playlist_entry.bind('<Return>', lambda *ignore: on_load_playlist())
 
     # ========== Table View ==========
     tableview = TableView(root, columns=COLUMN_IDS)
@@ -258,6 +259,22 @@ def download_playlist_gui(config: Config, playlist_url: str):
 
     tableview['show'] = 'headings'
 
+    def sort_by_column(column_id, descending):
+        """ Sorts the rows on a column, grouping outcomes together after a run """
+        index = COLUMN_IDS.index(column_id)
+        rows = sorted(tableview.get_children(),
+                      key=lambda row: str(tableview.item(row, 'values')[index]).lower(),
+                      reverse=descending)
+
+        for position, row in enumerate(rows):
+            tableview.move(row, '', position)
+
+        # Clicking the same header again reverses the order
+        tableview.heading(column_id, command=lambda: sort_by_column(column_id, not descending))
+
+    for column_id, heading, _, _, _ in COLUMNS:
+        tableview.heading(column_id, command=lambda c=column_id: sort_by_column(c, False))
+
     # Tint each row according to how its download went, the text colour is
     # pinned so a dark system theme doesn't put light text on these tints
     for status, colour in STATUS_COLOURS.items():
@@ -265,27 +282,67 @@ def download_playlist_gui(config: Config, playlist_url: str):
 
     tableview.pack(expand=True, fill=tk.BOTH, padx=10)
 
-    # ========== Batch Editor ==========
+    # Sitting in front of an empty grid, there is nothing saying what to do
+    empty_hint = ttk.Label(
+        tableview,
+        text="Paste a SoundCloud or Spotify playlist URL above, then click Load",
+        foreground='#777777',
+        anchor='center'
+    )
+
+    def update_empty_hint():
+        if tableview.get_children():
+            empty_hint.place_forget()
+        else:
+            empty_hint.place(relx=0.5, rely=0.5, anchor='center')
+
+    # The selection drives the counts and what the buttons act on
+    tableview.bind('<<TreeviewSelect>>', lambda *ignore: update_status_label())
+
+    # ========== Selected Tracks ==========
+    # Everything acting on the selection lives together
+    selection_frame = ttk.LabelFrame(root, text="Selected tracks", padding=(8, 4, 8, 8))
+    selection_frame.pack(fill=tk.X, padx=10, pady=(8, 0))
+
+    select_row = ttk.Frame(selection_frame)
+    select_row.pack(fill=tk.X)
+
+    select_all_button = ttk.Button(select_row, text="Select All", command=lambda: on_select_all())
+    invert_button = ttk.Button(select_row, text="Invert", command=lambda: on_invert_selection())
+
+    select_all_button.pack(side=tk.LEFT)
+    invert_button.pack(side=tk.LEFT, padx=5)
+
+    ttk.Label(select_row, text="Select by status").pack(side=tk.LEFT, padx=(15, 5))
+    status_filter = ttk.Combobox(
+        select_row,
+        values=[TrackStatus.DOWNLOADED, TrackStatus.SKIPPED, TrackStatus.REJECTED, TrackStatus.FAILED],
+        state="readonly",
+        width=12
+    )
+    status_filter.pack(side=tk.LEFT)
+    status_filter.bind('<<ComboboxSelected>>', lambda *ignore: on_select_by_status())
+
     # The genre is the one worth setting in bulk, the backends report their own
     default_genre = config.metadata.genre_override or config.metadata.default_genre
 
-    edit_frame = ttk.Frame(root)
-    ttk.Label(edit_frame, text="Set").pack(side=tk.LEFT)
+    edit_row = ttk.Frame(selection_frame)
+    edit_row.pack(fill=tk.X, pady=(8, 0))
 
-    edit_column = ttk.Combobox(edit_frame, values=list(EDITABLE_COLUMNS), state="readonly", width=14)
+    ttk.Label(edit_row, text="Set").pack(side=tk.LEFT)
+
+    edit_column = ttk.Combobox(edit_row, values=list(EDITABLE_COLUMNS), state="readonly", width=14)
     edit_column.set("Genre")
     edit_column.pack(side=tk.LEFT, padx=5)
 
-    ttk.Label(edit_frame, text="of the selected tracks to").pack(side=tk.LEFT)
+    ttk.Label(edit_row, text="to").pack(side=tk.LEFT)
 
-    edit_value = ttk.Entry(edit_frame, width=30)
+    edit_value = ttk.Entry(edit_row)
     edit_value.insert(0, default_genre)
-    edit_value.pack(side=tk.LEFT, padx=5)
+    edit_value.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
 
-    apply_button = ttk.Button(edit_frame, text="Apply", command=lambda: on_apply_edit())
+    apply_button = ttk.Button(edit_row, text="Apply", command=lambda: on_apply_edit())
     apply_button.pack(side=tk.LEFT)
-
-    edit_frame.pack(fill=tk.X, padx=10, pady=(8, 0))
 
     def on_edit_column_changed(*ignore):
         # Only the genre has a sensible value to suggest
@@ -294,9 +351,10 @@ def download_playlist_gui(config: Config, playlist_url: str):
             edit_value.insert(0, default_genre)
 
     edit_column.bind('<<ComboboxSelected>>', on_edit_column_changed)
+    edit_value.bind('<Return>', lambda *ignore: on_apply_edit())
 
     # ========== Log Panel ==========
-    log_frame = ttk.Frame(root)
+    log_frame = ttk.LabelFrame(root, text="Log", padding=(8, 4, 8, 8))
     log_text = tk.Text(log_frame, height=8, wrap=tk.NONE, state=tk.DISABLED)
     log_scroll = ttk.Scrollbar(log_frame, orient=tk.VERTICAL, command=log_text.yview)
     log_text.configure(yscrollcommand=log_scroll.set)
@@ -333,8 +391,10 @@ def download_playlist_gui(config: Config, playlist_url: str):
     # Global playlist info
     playlist_info = PlaylistInfo()
 
-    # Row of each track, TrackInfo isn't hashable so it is keyed by identity
+    # Row of each track and back, TrackInfo isn't hashable so it is keyed by
+    # identity. Both directions are needed once the table can be sorted.
     rows_by_track = {}
+    tracks_by_row = {}
 
     # Downloads run off the main thread, every widget update goes through here
     events = queue.Queue()
@@ -374,9 +434,43 @@ def download_playlist_gui(config: Config, playlist_url: str):
         """ Shows how many tracks are done out of how many were queued """
         if not progress['total']:
             progress_label.configure(text='')
+            progress_bar.pack_forget()
+            root.title(WINDOW_TITLE)
             return
 
-        progress_label.configure(text=f"{progress['done']} / {progress['total']}")
+        done, total = progress['done'], progress['total']
+        progress_label.configure(text=f"{done} / {total}")
+
+        # Shown only while a run is in progress
+        if not progress_bar.winfo_ismapped():
+            progress_bar.pack(side=tk.RIGHT, padx=(0, 5))
+
+        progress_bar.configure(maximum=total, value=done)
+
+        # Visible even when the window is behind something else
+        root.title(f"{WINDOW_TITLE} - downloading {done}/{total}")
+
+    def update_status_label():
+        """ Summarises what is loaded, selected and what a run produced """
+        total = len(tableview.get_children())
+        if not total:
+            status_label.configure(text="No playlist loaded")
+            return
+
+        parts = [f"{total} track{'s' if total != 1 else ''}"]
+
+        selected = len(tableview.selection())
+        if selected:
+            parts.append(f"{selected} selected")
+
+        if outcomes:
+            counts = Counter(outcomes)
+            parts.extend(f"{counts[status]} {status.lower()}"
+                         for status in (TrackStatus.DOWNLOADED, TrackStatus.SKIPPED,
+                                        TrackStatus.REJECTED, TrackStatus.FAILED)
+                         if counts[status])
+
+        status_label.configure(text='  ·  '.join(parts))
 
     def start_download(tracks_to_download):
         """ Runs a download on a worker thread so the window stays responsive """
@@ -407,6 +501,9 @@ def download_playlist_gui(config: Config, playlist_url: str):
 
     def on_download_finished(error):
         set_running(False)
+        progress['total'] = 0
+        update_progress()
+        update_status_label()
 
         if error:
             show_error("Download", error)
@@ -447,6 +544,7 @@ def download_playlist_gui(config: Config, playlist_url: str):
                         outcomes.append(status)
                         progress['done'] = len(outcomes)
                         update_progress()
+                        update_status_label()
                 elif kind == 'prompt':
                     messagebox.showinfo("Manual Download", f"{event[1]}\n\nClick OK once done.")
                     event[2].set()
@@ -466,6 +564,8 @@ def download_playlist_gui(config: Config, playlist_url: str):
         # Clear table view
         tableview.delete(*tableview.get_children())
         rows_by_track.clear()
+        tracks_by_row.clear()
+        outcomes.clear()
         playlist_info = PlaylistInfo()
 
         # Extract track infos
@@ -473,7 +573,12 @@ def download_playlist_gui(config: Config, playlist_url: str):
 
         # Populate table view
         for track_info in playlist_info.get_flat_list():
-            rows_by_track[id(track_info)] = add_list_entry(config, tableview, track_info)
+            row = add_list_entry(config, tableview, track_info)
+            rows_by_track[id(track_info)] = row
+            tracks_by_row[row] = track_info
+
+        update_status_label()
+        update_empty_hint()
 
         if not playlist_info.get_flat_list():
             messagebox.showinfo("Load Playlist", "This playlist has no track to download.")
@@ -483,11 +588,11 @@ def download_playlist_gui(config: Config, playlist_url: str):
         nonlocal playlist_info
 
         # Update global playlist info from table view
-        update_playlist_info(config, tableview, playlist_info)
+        update_playlist_info(config, tableview, tracks_by_row)
 
         # Extract selected track infos
-        track_infos = playlist_info.get_flat_list()
-        selected_track_infos = [track_infos[tableview.index(row)] for row in tableview.selection()]
+        selected_track_infos = [tracks_by_row[row] for row in tableview.selection()
+                                if row in tracks_by_row]
 
         if not selected_track_infos:
             messagebox.showinfo("Download", "Select at least one track to download.")
@@ -500,7 +605,7 @@ def download_playlist_gui(config: Config, playlist_url: str):
     def on_download_all():
         nonlocal playlist_info
 
-        update_playlist_info(config, tableview, playlist_info)
+        update_playlist_info(config, tableview, tracks_by_row)
 
         if not playlist_info.get_flat_list():
             messagebox.showinfo("Download", "Load a playlist first.")
@@ -530,6 +635,7 @@ def download_playlist_gui(config: Config, playlist_url: str):
             values[column_index] = value
             tableview.item(row, values=values)
 
+
         logger.info(f"Set {heading.lower()} of {len(rows)} track(s) to '{value}'")
 
         # The edit would be silently ignored while an override is configured
@@ -549,6 +655,18 @@ def download_playlist_gui(config: Config, playlist_url: str):
         selected = set(tableview.selection())
         tableview.selection_set([row for row in tableview.get_children() if row not in selected])
 
+    def on_select_by_status():
+        """ Selects every track that ended with the chosen status, to retry them """
+        wanted = status_filter.get()
+        matching = [row for row in tableview.get_children()
+                    if tableview.item(row, 'values')[STATUS_INDEX] == wanted]
+
+        tableview.selection_set(matching)
+        if matching:
+            tableview.see(matching[0])
+        else:
+            messagebox.showinfo("Select by status", f"No track is marked '{wanted}'.")
+
     @report_errors("Open Folder")
     def open_folder(folder_path):
         """ Reveals a folder in the file explorer """
@@ -563,23 +681,27 @@ def download_playlist_gui(config: Config, playlist_url: str):
         exported = config.downloads.flac_folder if config.downloads.lossless else config.downloads.mp3_folder
         open_folder(exported if os.path.isdir(exported) else config.downloads.root_folder)
 
-    # ========== Download Buttons ==========
+    # ========== Action Bar ==========
+    # What is loaded on the left, what to do about it on the right
     download_buttons_frame = ttk.Frame(root)
-    download_selected_button = ttk.Button(download_buttons_frame, text="Download Selected", command=on_download_selected)
+
+    status_label = ttk.Label(download_buttons_frame, text="No playlist loaded")
+    status_label.pack(side=tk.LEFT)
+
     download_all_button = ttk.Button(download_buttons_frame, text="Download All", command=on_download_all)
+    download_selected_button = ttk.Button(download_buttons_frame, text="Download Selected", command=on_download_selected)
     cancel_button = ttk.Button(download_buttons_frame, text="Cancel", command=on_cancel, state=tk.DISABLED)
 
-    select_all_button = ttk.Button(download_buttons_frame, text="Select All", command=on_select_all)
-    invert_button = ttk.Button(download_buttons_frame, text="Invert", command=on_invert_selection)
-    open_folder_button = ttk.Button(download_buttons_frame, text="Open Folder", command=on_open_downloads)
+    cancel_button.pack(side=tk.RIGHT)
+    download_all_button.pack(side=tk.RIGHT, padx=5)
+    download_selected_button.pack(side=tk.RIGHT)
 
-    select_all_button.pack(side=tk.LEFT, padx=(10, 2))
-    invert_button.pack(side=tk.LEFT, padx=2)
-    download_selected_button.pack(side=tk.LEFT, padx=(20, 2))
-    download_all_button.pack(side=tk.LEFT, padx=2)
-    cancel_button.pack(side=tk.LEFT, padx=2)
-    open_folder_button.pack(side=tk.LEFT, padx=(20, 10))
-    download_buttons_frame.pack(padx=10, pady=10)
+    progress_label = ttk.Label(download_buttons_frame, text='', anchor='e')
+    progress_label.pack(side=tk.RIGHT, padx=(15, 10))
+
+    progress_bar = ttk.Progressbar(download_buttons_frame, mode='determinate', length=140)
+
+    download_buttons_frame.pack(fill=tk.X, padx=10, pady=10)
 
     # Ctrl+A selects every track
     tableview.bind('<Control-a>', on_select_all)
@@ -593,6 +715,9 @@ def download_playlist_gui(config: Config, playlist_url: str):
             open_folder(os.path.join(config.downloads.root_folder, REJECTED_FOLDER_NAME))
 
     tableview.on_readonly_double_click = on_status_click
+
+    update_status_label()
+    update_empty_hint()
 
     # Mirror the console log into the panel, shown by default so warnings
     # such as a rejected track don't go unnoticed
