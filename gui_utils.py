@@ -3,6 +3,8 @@ import logging
 
 from pathlib import Path
 
+import sv_ttk
+
 import tkinter as tk
 from tkinter import messagebox
 
@@ -12,6 +14,53 @@ logger = logging.getLogger(__name__)
 
 # Window state is per machine, it doesn't belong in the shared config
 LAYOUT_PATH = Path('config/layout.json')
+
+# Colours for the widgets ttk doesn't style, taken from the theme itself
+THEME_COLOURS = {
+    'light': {'background': '#fafafa', 'foreground': '#1c1c1c', 'muted': '#666666'},
+    'dark':  {'background': '#1c1c1c', 'foreground': '#fafafa', 'muted': '#9e9e9e'}
+}
+
+def resolve_theme(preference: str):
+    """ Turns the configured preference into the theme to actually apply """
+    preference = (preference or 'system').strip().lower()
+    if preference in THEME_COLOURS:
+        return preference
+
+    if preference != 'system':
+        logger.warning(f"Unknown theme '{preference}', following the system one")
+
+    # Windows only exposes whether apps should use the light theme
+    try:
+        import winreg
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r'Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
+        )
+        with key:
+            uses_light, _ = winreg.QueryValueEx(key, 'AppsUseLightTheme')
+        return 'light' if uses_light else 'dark'
+    except Exception:
+        logger.debug("Could not read the system theme", exc_info=True)
+        return 'light'
+
+def apply_theme(preference: str):
+    """ Applies the window theme and returns the one that ended up being used """
+    theme = resolve_theme(preference)
+
+    try:
+        sv_ttk.set_theme(theme)
+    except Exception as e:
+        logger.warning(f"Could not apply the {theme} theme: {format_error(e)}")
+
+    return theme
+
+def theme_colours():
+    """ Colours of the theme in use, for widgets ttk leaves alone """
+    try:
+        return THEME_COLOURS[sv_ttk.get_theme()]
+    except Exception:
+        return THEME_COLOURS['light']
 
 def restore_window_layout(window):
     """ Restores the size and position the window was last closed with """

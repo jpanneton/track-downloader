@@ -10,7 +10,7 @@ from backends import BACKENDS, create_backend
 
 from config import Config, load_setting_descriptions
 from errors import format_error
-from gui_utils import set_window_icon
+from gui_utils import set_window_icon, theme_colours
 
 # Width the explanation of a setting wraps at
 DESCRIPTION_WRAP = 560
@@ -101,7 +101,7 @@ class ConfigEditor:
             hint = ttk.Label(
                 container,
                 text=description,
-                foreground='#666666',
+                foreground=theme_colours()['muted'],
                 wraplength=DESCRIPTION_WRAP,
                 justify='left'
             )
@@ -159,7 +159,9 @@ class ConfigEditor:
         set_window_icon(self.window)
 
         # The form is taller than some screens, keep the buttons reachable
-        canvas = tk.Canvas(self.window, highlightthickness=0)
+        colours = theme_colours()
+        canvas = tk.Canvas(self.window, highlightthickness=0,
+                           background=colours['background'])
         scrollbar = ttk.Scrollbar(self.window, orient='vertical', command=canvas.yview)
         canvas.configure(yscrollcommand=scrollbar.set)
 

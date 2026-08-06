@@ -9,11 +9,13 @@ from config import Config
 from config_editor import ConfigEditor
 from gui_utils import (
     QueueLogHandler,
+    apply_theme,
     report_errors,
     restore_window_layout,
     save_window_layout,
     set_window_icon,
-    show_error
+    show_error,
+    theme_colours
 )
 from models import PlaylistInfo, TrackInfo, TrackStatus
 from pipeline import DownloadListener, download_playlist
@@ -55,14 +57,26 @@ LOG_LINE_LIMIT = 500
 
 # Row tint per outcome, scanning a long playlist by colour is faster than reading
 # The hues are saturated enough to tell apart at a glance while keeping the
-# black text readable, paler tints made 'Downloaded' and 'Skipped' look alike
+# text readable, paler tints made 'Downloaded' and 'Skipped' look alike
 STATUS_COLOURS = {
-    TrackStatus.DOWNLOADING: '#90caf9',
-    TrackStatus.DOWNLOADED:  '#7cc47f',
-    TrackStatus.SKIPPED:     '#c3ccd1',
-    TrackStatus.REJECTED:    '#ffb74d',
-    TrackStatus.FAILED:      '#e57373'
+    'light': {
+        TrackStatus.DOWNLOADING: '#90caf9',
+        TrackStatus.DOWNLOADED:  '#7cc47f',
+        TrackStatus.SKIPPED:     '#c3ccd1',
+        TrackStatus.REJECTED:    '#ffb74d',
+        TrackStatus.FAILED:      '#e57373'
+    },
+    'dark': {
+        TrackStatus.DOWNLOADING: '#1e3a5f',
+        TrackStatus.DOWNLOADED:  '#1e4620',
+        TrackStatus.SKIPPED:     '#37474f',
+        TrackStatus.REJECTED:    '#5d4037',
+        TrackStatus.FAILED:      '#5c1e1e'
+    }
 }
+
+# Text on the tints above, the light ones are too bright for white text
+STATUS_TEXT_COLOURS = {'light': '#000000', 'dark': '#ffffff'}
 
 class EntryPopup(ttk.Entry):
     """ Text entry widget that gets displayed to edit TableView cells """
@@ -211,6 +225,11 @@ def download_playlist_gui(config: Config, playlist_url: str):
     root.title(WINDOW_TITLE)
     root.minsize(640, 480)
     set_window_icon(root)
+
+    # Applied before the widgets are built so they pick up the styling
+    theme = apply_theme(config.interface.theme)
+    colours = theme_colours()
+
     restore_window_layout(root)
 
     # ========== Toolbar ==========
@@ -277,8 +296,9 @@ def download_playlist_gui(config: Config, playlist_url: str):
 
     # Tint each row according to how its download went, the text colour is
     # pinned so a dark system theme doesn't put light text on these tints
-    for status, colour in STATUS_COLOURS.items():
-        tableview.tag_configure(status, background=colour, foreground='#000000')
+    for status, colour in STATUS_COLOURS[theme].items():
+        tableview.tag_configure(status, background=colour,
+                                foreground=STATUS_TEXT_COLOURS[theme])
 
     tableview.pack(expand=True, fill=tk.BOTH, padx=10)
 
@@ -286,7 +306,7 @@ def download_playlist_gui(config: Config, playlist_url: str):
     empty_hint = ttk.Label(
         tableview,
         text="Paste a SoundCloud or Spotify playlist URL above, then click Load",
-        foreground='#777777',
+        foreground=colours['muted'],
         anchor='center'
     )
 
@@ -355,7 +375,12 @@ def download_playlist_gui(config: Config, playlist_url: str):
 
     # ========== Log Panel ==========
     log_frame = ttk.LabelFrame(root, text="Log", padding=(8, 4, 8, 8))
-    log_text = tk.Text(log_frame, height=8, wrap=tk.NONE, state=tk.DISABLED)
+    log_text = tk.Text(
+        log_frame, height=8, wrap=tk.NONE, state=tk.DISABLED,
+        background=colours['background'], foreground=colours['foreground'],
+        insertbackground=colours['foreground'], relief=tk.FLAT,
+        borderwidth=0, highlightthickness=0
+    )
     log_scroll = ttk.Scrollbar(log_frame, orient=tk.VERTICAL, command=log_text.yview)
     log_text.configure(yscrollcommand=log_scroll.set)
 
@@ -399,6 +424,9 @@ def download_playlist_gui(config: Config, playlist_url: str):
     # Downloads run off the main thread, every widget update goes through here
     events = queue.Queue()
     cancel_event = threading.Event()
+
+    # Scheduled event pump, cancelled when the window closes
+    pump_job = {'id': None}
 
     # Progress of the current run and how each track ended
     progress = {'done': 0, 'total': 0}
@@ -555,7 +583,9 @@ def download_playlist_gui(config: Config, playlist_url: str):
         except queue.Empty:
             pass
 
-        root.after(100, pump_events)
+        # Tracked so closing the window can cancel it, a pending callback
+        # firing after the widgets are gone raises a Tcl error
+        pump_job['id'] = root.after(100, pump_events)
 
     @report_errors("Load Playlist")
     def on_load_playlist():
@@ -727,12 +757,19 @@ def download_playlist_gui(config: Config, playlist_url: str):
 
     def on_close():
         save_window_layout(root)
+
         # A running download would keep the process alive otherwise
         cancel_event.set()
+
+        # Stop pumping before the widgets go away
+        if pump_job['id']:
+            root.after_cancel(pump_job['id'])
+
+        logging.getLogger().removeHandler(log_handler)
         root.destroy()
 
     root.protocol("WM_DELETE_WINDOW", on_close)
 
     # Start pumping worker events, then the main loop
-    root.after(100, pump_events)
+    pump_job['id'] = root.after(100, pump_events)
     root.mainloop()
