@@ -125,6 +125,10 @@ class MetadataConfig:
     genre_override: str = ''
 
 @dataclass(slots=True)
+class InterfaceConfig:
+    theme: str = 'system'
+
+@dataclass(slots=True)
 class SoundcloudConfig:
     supported_download_gates: list[str]
     use_web_driver: bool
@@ -151,6 +155,7 @@ class QobuzConfig:
 class Config:
     downloads: DownloadsConfig
     metadata: MetadataConfig
+    interface: InterfaceConfig
     soundcloud: SoundcloudConfig
     spotify: SpotifyConfig
     deezer: DeezerConfig
@@ -199,6 +204,8 @@ class Config:
             downloads = build_section(DownloadsConfig, 'downloads', doc['downloads'])
             metadata = build_section(MetadataConfig, 'metadata', doc['metadata'])
             soundcloud = build_section(SoundcloudConfig, 'soundcloud', doc['soundcloud'])
+            # Added after the first release, an older config file won't have it
+            interface = build_section(InterfaceConfig, 'interface', doc.get('interface', {}))
             # Credential sections only live in the secrets file on a fresh clone
             spotify = build_section(SpotifyConfig, 'spotify', doc.get('spotify', {}))
             deezer = build_section(DeezerConfig, 'deezer', doc.get('deezer', {}))
@@ -207,6 +214,7 @@ class Config:
             return cls(
                 downloads=downloads,
                 metadata=metadata,
+                interface=interface,
                 soundcloud=soundcloud,
                 spotify=spotify,
                 deezer=deezer,

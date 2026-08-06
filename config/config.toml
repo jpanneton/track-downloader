@@ -1,6 +1,6 @@
 [downloads]
 # Folder where original files will be downloaded then moved to a sub 'YYYY-MM-DD/format' folder
-root_folder = "./downloads"
+root_folder = "downloads"
 # Name of the folder where final FLAC files will be exported
 flac_folder = "flac"
 # Name of the folder where final MP3 files will be exported
@@ -8,11 +8,11 @@ mp3_folder = "mp3"
 # Name of the folder where final WAV files will be exported
 wav_folder = "wav"
 # Download backend ('deezer', 'qobuz')
-backend = "deezer"
+backend = "qobuz"
 # Download format (false = MP3@320, true = FLAC@44.1)
 lossless = false
 # Playlist to download (must be public if Spotify)
-playlist_url = ""
+playlist_url = "https://open.spotify.com/playlist/1XfdfEhNGD9i5gtVpyNnlk?si=8c9b1ca8394e43e2"
 
 [metadata]
 # Relevant remix tokens (everything else will be removed from the title)
@@ -27,6 +27,11 @@ tag_single_album = false
 default_genre = ""
 # Genre forced on every track, leave empty to keep the ones above
 genre_override = ""
+
+[interface]
+# Appearance of the window ('system', 'light', 'dark')
+# 'system' follows the Windows light/dark setting
+theme = "system"
 
 [soundcloud]
 # Website names that will be detected as a download gate
