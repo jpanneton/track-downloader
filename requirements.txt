@@ -7,4 +7,5 @@ requests==2.31.0
 selenium==4.19.0
 soundcloud_lib==0.6.1
 spotipy==2.23.0
+sv_ttk==2.6.0
 tomlkit==0.12.4
