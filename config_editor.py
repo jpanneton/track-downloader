@@ -10,10 +10,16 @@ from backends import BACKENDS, create_backend
 
 from config import Config, load_setting_descriptions
 from errors import format_error
-from gui_utils import set_window_icon, theme_colours
+from gui_utils import THEMES, set_window_icon, theme_colours
 
 # Width the explanation of a setting wraps at
 DESCRIPTION_WRAP = 560
+
+# Settings whose values are known, offered as a dropdown instead of free text
+SETTING_CHOICES = {
+    'backend': BACKENDS,
+    'theme': THEMES
+}
 
 # Generates a Config instance based on the state of the controls
 def generate_config_from_dict(cls, widget_dict):
@@ -72,23 +78,25 @@ class ConfigEditor:
         label.pack(side='left')
 
         # Input field
-        if label_text == "backend":
-            # Use combobox for backend instead of entry
-            combo = ttk.Combobox(frame, textvariable=var, values=list(BACKENDS), state="readonly")
+        choices = SETTING_CHOICES.get(label_text)
+        if choices:
+            # A setting with a known set of values shouldn't be typed by hand
+            combo = ttk.Combobox(frame, textvariable=var, values=list(choices), state="readonly")
             combo.pack(side='left', fill='x', expand=True, padx=(0, 5))
 
-            def on_test_backend():
-                try:
-                    backend = create_backend(self.generate_config())
-                    backend.connect()
-                    messagebox.showinfo("Success", f"Connected to {backend.name.capitalize()}!")
-                except Exception as e:
-                    # Report the real cause, credentials are only one of them
-                    messagebox.showerror("Error", format_error(e))
+            if label_text == "backend":
+                def on_test_backend():
+                    try:
+                        backend = create_backend(self.generate_config())
+                        backend.connect()
+                        messagebox.showinfo("Success", f"Connected to {backend.name.capitalize()}!")
+                    except Exception as e:
+                        # Report the real cause, credentials are only one of them
+                        messagebox.showerror("Error", format_error(e))
 
-            # Add test button
-            test_button = ttk.Button(frame, text="Test", command=on_test_backend)
-            test_button.pack(side='right')
+                # Add test button
+                test_button = ttk.Button(frame, text="Test", command=on_test_backend)
+                test_button.pack(side='right')
         elif isinstance(var, tk.BooleanVar):
             cb = ttk.Checkbutton(frame, variable=var)
             cb.pack(side='left')
