@@ -678,8 +678,8 @@ def download_playlist_gui(config: Config, playlist_url: str):
 
     def on_open_downloads():
         # The dated folder only exists once something has been exported
-        exported = config.downloads.flac_folder if config.downloads.lossless else config.downloads.mp3_folder
-        open_folder(exported if os.path.isdir(exported) else config.downloads.root_folder)
+        exported = config.downloads.flac_path if config.downloads.lossless else config.downloads.mp3_path
+        open_folder(exported if os.path.isdir(exported) else config.downloads.root_path)
 
     # ========== Action Bar ==========
     # What is loaded on the left, what to do about it on the right
@@ -712,7 +712,7 @@ def download_playlist_gui(config: Config, playlist_url: str):
             return
         values = tableview.item(row, 'values')
         if values[STATUS_INDEX] == TrackStatus.REJECTED:
-            open_folder(os.path.join(config.downloads.root_folder, REJECTED_FOLDER_NAME))
+            open_folder(os.path.join(config.downloads.root_path, REJECTED_FOLDER_NAME))
 
     tableview.on_readonly_double_click = on_status_click
 

@@ -24,7 +24,7 @@ def download_direct_downloads(config: Config, track_infos: list[TrackInfo]):
 
         # Download file to downloads folder
         filename = f'{track_info.name}.wav'
-        dest_path = os.path.join(config.downloads.root_folder, filename)
+        dest_path = os.path.join(config.downloads.root_path, filename)
         download_file(track_info.download_url, dest_path)
 
         # Process the file
@@ -140,7 +140,7 @@ def download_playlist(config: Config, playlist_info: PlaylistInfo, listener=None
         console implementation is invisible when running from the GUI
     """
     # Create root download folder if necessary
-    os.makedirs(config.downloads.root_folder, exist_ok=True)
+    os.makedirs(config.downloads.root_path, exist_ok=True)
 
     # Leave files that were already there alone, they aren't part of this run
     ignored_files = list_downloaded_files(config)
@@ -156,7 +156,7 @@ def download_playlist(config: Config, playlist_info: PlaylistInfo, listener=None
             chrome_options.add_argument('--log-level=3')
             chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
             chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
-            chrome_options.add_experimental_option('prefs', {'download.default_directory' : config.downloads.root_folder})
+            chrome_options.add_experimental_option('prefs', {'download.default_directory' : config.downloads.root_path})
 
             # Initialize the WebDriver
             web_driver = ChromeDriver(options=chrome_options)

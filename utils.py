@@ -33,7 +33,7 @@ def resolve_collision(folder_path, filename):
 
 def list_downloaded_files(config: Config, ignored_files=()):
     """ Lists the files sitting in the downloads folder excluding sub-folders """
-    root_folder = config.downloads.root_folder
+    root_folder = config.downloads.root_path
     if not os.path.exists(root_folder):
         return []
 
@@ -47,7 +47,7 @@ def quarantine_file(config: Config, source_path):
     """ Moves a file that failed validation out of the downloads folder
         Keeping it makes a wrong rejection recoverable and inspectable
     """
-    rejected_folder = os.path.join(config.downloads.root_folder, REJECTED_FOLDER_NAME)
+    rejected_folder = os.path.join(config.downloads.root_path, REJECTED_FOLDER_NAME)
     os.makedirs(rejected_folder, exist_ok=True)
 
     destination_path = resolve_collision(rejected_folder, os.path.basename(source_path))
@@ -65,7 +65,7 @@ def download_file(url, dest_path):
 
 def is_file_downloaded(config: Config, filename):
     """ Checks if a file has been properly downloaded in the downloads folder """
-    return os.path.isfile(os.path.join(config.downloads.root_folder, filename))
+    return os.path.isfile(os.path.join(config.downloads.root_path, filename))
 
 def list_subfolders(folder_path):
     """ Lists the sub-folders sitting directly in a folder """

@@ -1,6 +1,5 @@
 import logging
 import os
-import re
 
 from dataclasses import asdict, dataclass, fields, is_dataclass
 from datetime import datetime
@@ -88,6 +87,31 @@ class DownloadsConfig:
     backend: str
     lossless: bool
     playlist_url: str
+
+    # The fields above hold what the user configured. The paths below are
+    # derived from them, storing the result would put today's date in the
+    # config and change it every day.
+
+    @property
+    def root_path(self):
+        """ Absolute path of the folder downloads land in """
+        return os.path.abspath(self.root_folder)
+
+    def export_path(self, folder: str):
+        """ Path a format is exported to, grouped by the day of the download """
+        return os.path.join(self.root_path, datetime.now().strftime('%Y-%m-%d'), folder)
+
+    @property
+    def flac_path(self):
+        return self.export_path(self.flac_folder)
+
+    @property
+    def mp3_path(self):
+        return self.export_path(self.mp3_folder)
+
+    @property
+    def wav_path(self):
+        return self.export_path(self.wav_folder)
 
 @dataclass(slots=True)
 class MetadataConfig:
@@ -180,15 +204,6 @@ class Config:
             deezer = build_section(DeezerConfig, 'deezer', doc.get('deezer', {}))
             qobuz = build_section(QobuzConfig, 'qobuz', doc.get('qobuz', {}))
 
-            # Get today's date
-            current_date = datetime.now().strftime('%Y-%m-%d')
-
-            # Enforce absolute paths
-            downloads.root_folder = os.path.abspath(downloads.root_folder)
-            downloads.flac_folder = os.path.join(downloads.root_folder, current_date, downloads.flac_folder)
-            downloads.mp3_folder = os.path.join(downloads.root_folder, current_date, downloads.mp3_folder)
-            downloads.wav_folder = os.path.join(downloads.root_folder, current_date, downloads.wav_folder)
-
             return cls(
                 downloads=downloads,
                 metadata=metadata,
@@ -223,32 +238,14 @@ class Config:
                 else:
                     section[key] = value
 
-        def extract_leaf_folder(full_path: str, root: str) -> str:
-            try:
-                relative = os.path.relpath(full_path, root)
-                parts = relative.split(os.sep)
-                # Strip the dated folder inserted when loading the config
-                if len(parts) >= 2 and re.fullmatch(r'\d{4}-\d{2}-\d{2}', parts[0]):
-                    return parts[1]
-            except Exception:
-                pass
-            return os.path.basename(full_path)
-
         try:
             # Load original TOML doc to preserve comments
             toml_path = CONFIG_PATH
             text = Path(toml_path).read_text(encoding='utf-8')
             doc = parse_toml(text)
 
-            # Convert config to dict
+            # Convert config to dict, the fields hold exactly what was configured
             config_dict = dataclass_to_dict(self)
-
-            # Reverse absolute date folder paths
-            root_folder = self.downloads.root_folder
-            config_dict["downloads"]["root_folder"] = os.path.basename(root_folder)
-            config_dict["downloads"]["flac_folder"] = extract_leaf_folder(self.downloads.flac_folder, root_folder)
-            config_dict["downloads"]["mp3_folder"] = extract_leaf_folder(self.downloads.mp3_folder, root_folder)
-            config_dict["downloads"]["wav_folder"] = extract_leaf_folder(self.downloads.wav_folder, root_folder)
 
             # Split the credentials out of the shared config
             secrets_dict = {

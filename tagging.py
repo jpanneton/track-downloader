@@ -80,13 +80,13 @@ def validate_file(config: Config, track_info: TrackInfo, track_metadata, filenam
 def process_flac(config: Config, track_info: TrackInfo, filename):
     """ Generates a properly tagged FLAC """
     # Make sure the destination FLAC folder exists
-    os.makedirs(config.downloads.flac_folder, exist_ok=True)
+    os.makedirs(config.downloads.flac_path, exist_ok=True)
 
     # Source path as downloaded in the downloads folder
-    source_path = os.path.join(config.downloads.root_folder, filename)
+    source_path = os.path.join(config.downloads.root_path, filename)
 
     # Destination path with properly formatted file name
-    destination_path = os.path.join(config.downloads.flac_folder, f'{track_info.name}.flac')
+    destination_path = os.path.join(config.downloads.flac_path, f'{track_info.name}.flac')
 
     # Update tags
     audiofile = MutagenFLAC(source_path)
@@ -125,13 +125,13 @@ def process_flac(config: Config, track_info: TrackInfo, filename):
 def process_mp3(config: Config, track_info: TrackInfo, filename):
     """ Generates a properly tagged MP3 """
     # Make sure the destination MP3 folder exists
-    os.makedirs(config.downloads.mp3_folder, exist_ok=True)
+    os.makedirs(config.downloads.mp3_path, exist_ok=True)
 
     # Source path as downloaded in the downloads folder
-    source_path = os.path.join(config.downloads.root_folder, filename)
+    source_path = os.path.join(config.downloads.root_path, filename)
 
     # Destination path with properly formatted file name
-    destination_path = os.path.join(config.downloads.mp3_folder, f'{track_info.name}.mp3')
+    destination_path = os.path.join(config.downloads.mp3_path, f'{track_info.name}.mp3')
 
     # Update tags
     audiofile = MutagenMP3(source_path, ID3=EasyID3)
@@ -167,15 +167,15 @@ def process_mp3(config: Config, track_info: TrackInfo, filename):
 def process_wav(config: Config, track_info: TrackInfo, filename):
     """ Converts a WAV to a properly tagged MP3 """
     # Make sure the destination MP3 and WAV folders exist
-    os.makedirs(config.downloads.mp3_folder, exist_ok=True)
-    os.makedirs(config.downloads.wav_folder, exist_ok=True)
+    os.makedirs(config.downloads.mp3_path, exist_ok=True)
+    os.makedirs(config.downloads.wav_path, exist_ok=True)
 
     # Source path as downloaded in the downloads folder
-    source_path = os.path.join(config.downloads.root_folder, filename)
+    source_path = os.path.join(config.downloads.root_path, filename)
 
     # Destination paths with properly formatted file names
-    dest_path_mp3 = os.path.join(config.downloads.mp3_folder, f'{track_info.name}.mp3')
-    dest_path_wav = os.path.join(config.downloads.wav_folder, f'{track_info.name}.wav')
+    dest_path_mp3 = os.path.join(config.downloads.mp3_path, f'{track_info.name}.mp3')
+    dest_path_wav = os.path.join(config.downloads.wav_path, f'{track_info.name}.wav')
 
     # Load the WAV file
     audio = AudioSegment.from_wav(source_path)
@@ -195,7 +195,7 @@ def process_wav(config: Config, track_info: TrackInfo, filename):
     # Download the artwork from the URL and save it to a temporary file
     artwork_path = None
     if track_info.artwork_url:
-        artwork_path = os.path.join(config.downloads.root_folder, 'Artwork.jpg')
+        artwork_path = os.path.join(config.downloads.root_path, 'Artwork.jpg')
         download_file(track_info.artwork_url, artwork_path)
 
     # Export the audio as an MP3 file with the specified bitrate and metadata

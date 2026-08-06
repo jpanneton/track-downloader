@@ -41,6 +41,6 @@ class DeezerBackend(DownloadBackend):
 
         self.deemix.download(
             urls=[track_url],
-            path=self.config.downloads.root_folder,
+            path=self.config.downloads.root_path,
             flac=self.config.downloads.lossless
         )

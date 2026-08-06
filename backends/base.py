@@ -38,7 +38,7 @@ class DownloadBackend(ABC):
             The folder is compared before and after so a track is never paired
             with a file that another query downloaded
         """
-        root_folder = self.config.downloads.root_folder
+        root_folder = self.config.downloads.root_path
         previous_files = set(list_audio_files(root_folder))
         previous_subfolders = set(list_subfolders(root_folder))
 

@@ -25,7 +25,7 @@ class QobuzBackend(DownloadBackend):
         )
 
         self.qobuz = QobuzDL(
-            directory=self.config.downloads.root_folder,
+            directory=self.config.downloads.root_path,
             quality=6 if self.config.downloads.lossless else 5,
             embed_art=True,
             lucky_type="track"
