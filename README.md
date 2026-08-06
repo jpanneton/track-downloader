@@ -21,7 +21,7 @@ pip install -r requirements.txt
 
 Then, copy `config/secrets.toml.example` to `config/secrets.toml` and fill in the credentials of the backend you intend to use. `secrets.toml` is ignored by git so your credentials are never committed. Credentials found in an older `config/config.toml` are moved there automatically on first run.
 
-Credentials can also be edited from the interface with the **Config** button, which has a **Test** button to check them.
+Credentials can also be edited from the interface with the **Config** button, which explains what every setting does and has a **Test** button to check them.
 
 ### Deezer backend
 
@@ -61,6 +61,8 @@ Each track shows its outcome in the **Status** column, with the row tinted to ma
 | Skipped | the backend found nothing matching the track |
 | Rejected | downloaded but the tags didn't match, kept in `_rejected/` |
 | Failed | the download or the tagging raised an error |
+
+Click a column header to sort the table, which groups outcomes together after a run. **Select by status** picks every track that ended a given way, so retrying just the failures is Select by status → Failed → Download Selected.
 
 Attributes can be set on several tracks at once with the bar under the table: pick an attribute, type a value and click **Apply** to write it to every selected track. It defaults to the genre, prefilled from the config.
 
