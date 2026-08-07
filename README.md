@@ -19,7 +19,9 @@ pip install -r requirements.txt
 
 [FFmpeg](https://ffmpeg.org/download.html) must also be on your `PATH` to convert WAV downloads to MP3.
 
-Then, copy `config/secrets.toml.example` to `config/secrets.toml` and fill in the credentials of the backend you intend to use. `secrets.toml` is ignored by git so your credentials are never committed. Credentials found in an older `config/config.toml` are moved there automatically on first run.
+`config/config.toml` and `config/secrets.toml` are created from the `.example` files next to them on first run, and both are ignored by git so your settings and credentials are never committed. When a setting is added to or removed from a template, your file is updated to match on the next run while keeping the values you set.
+
+Fill in `config/secrets.toml` with the credentials of the backend you intend to use. Credentials found in an older `config/config.toml` are moved there automatically.
 
 Credentials can also be edited from the interface with the **Config** button, which explains what every setting does and has a **Test** button to check them.
 
@@ -85,6 +87,10 @@ The genre of a track is taken from the first of these that provides one:
 4. `default_genre` in the config
 
 Qobuz reports genres in the language of the account, so `genre_override` is the way to keep a library consistent.
+
+## Matching
+
+Tracks from a Spotify playlist carry their ISRC, the identifier of the exact recording. The backends match on it rather than searching by name, which avoids downloading a different version of a track: searching Qobuz for "Taylor Swift Love Story" returns *Love Story (Taylor's Version)*, while the ISRC returns the 2008 recording. A Spotify playlist is handed to Deezer directly, without a search at all. SoundCloud tracks have no ISRC, so they still fall back to a name search.
 
 ## Downloads
 
