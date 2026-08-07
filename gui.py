@@ -9,7 +9,9 @@ from config import Config
 from config_editor import ConfigEditor
 from gui_utils import (
     QueueLogHandler,
+    apply_dpi_scaling,
     apply_theme,
+    enable_dpi_awareness,
     fit_to_screen,
     report_errors,
     restore_window_layout,
@@ -228,8 +230,12 @@ def update_playlist_info(config: Config, tableview: TableView, tracks_by_row):
 
 def download_playlist_gui(config: Config, playlist_url: str):
     """ Downloads a playlist (graphical version) """
+    # Before the first window exists, or Windows stretches a 96 DPI bitmap
+    enable_dpi_awareness()
+
     # Create window
     root = tk.Tk()
+    apply_dpi_scaling(root)
     root.title(WINDOW_TITLE)
     root.minsize(640, 480)
     set_window_icon(root)

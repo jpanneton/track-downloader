@@ -1,6 +1,8 @@
+import ctypes
 import json
 import logging
 import re
+import sys
 
 from pathlib import Path
 
@@ -74,6 +76,43 @@ def apply_theme(preference: str):
 def theme_colours():
     """ Colours of the theme in use, for widgets ttk leaves alone """
     return THEME_COLOURS.get(_applied_theme, THEME_COLOURS['classic'])
+
+def enable_dpi_awareness():
+    """ Makes Windows report real pixels instead of stretching the window
+
+        A DPI unaware window is drawn at 96 DPI and scaled up by Windows, which
+        is what makes it blurry on a high resolution display. Must be called
+        before the first window exists.
+    """
+    if sys.platform != 'win32':
+        return
+
+    try:
+        # Per monitor v2, so moving between displays rescales correctly
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        return
+    except (AttributeError, OSError) as e:
+        logger.debug(f"Per monitor DPI awareness unavailable: {e}")
+
+    try:
+        # Older Windows only knows about the primary display
+        ctypes.windll.user32.SetProcessDPIAware()
+    except (AttributeError, OSError) as e:
+        logger.debug(f"Could not enable DPI awareness: {e}")
+
+def apply_dpi_scaling(window):
+    """ Sizes Tk's fonts and widgets for the real DPI of the display
+        Without this the window is crisp but everything in it is tiny
+    """
+    try:
+        dpi = window.winfo_fpixels('1i')
+    except tk.TclError:
+        return
+
+    # Tk measures in points, and a hostile value would make the window unusable
+    scaling = min(max(dpi / 72, 1.0), 4.0)
+    window.tk.call('tk', 'scaling', scaling)
+    logger.debug(f"Display reports {dpi:.0f} DPI, Tk scaling set to {scaling:.2f}")
 
 def fit_to_screen(window, width=None, height=None):
     """ Sizes the window to fit the display it opens on
