@@ -1,6 +1,7 @@
 import logging
 
 from backends.base import DownloadBackend
+from paths import app_path
 from config import require_settings
 from deemix_client import DeemixClient
 from errors import BackendError, format_error
@@ -19,7 +20,7 @@ class DeezerBackend(DownloadBackend):
         require_settings('Deezer', deezer_arl=self.config.deezer.deezer_arl)
 
         self.deemix = DeemixClient(
-            config_folder="./config/deemix",
+            config_folder=str(app_path("config", "deemix")),
             arl=self.config.deezer.deezer_arl,
             client_id=self.config.spotify.client_id,
             client_secret=self.config.spotify.client_secret

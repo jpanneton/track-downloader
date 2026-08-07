@@ -8,10 +8,11 @@ from tomlkit.api import dumps as dumps_toml, parse as parse_toml, table as toml_
 from tomlkit.items import Comment, Whitespace
 
 from errors import ConfigurationError
+from paths import app_path, resolve_path
 
 logger = logging.getLogger(__name__)
 
-CONFIG_PATH = 'config/config.toml'
+CONFIG_PATH = app_path('config', 'config.toml')
 
 def build_section(cls, section: str, values):
     """ Builds a config section, ignoring settings the app no longer knows
@@ -38,11 +39,11 @@ def require_settings(section: str, **settings):
         )
 
 # Credentials live in their own file so the shared config can stay in git
-SECRETS_PATH = 'config/secrets.toml'
+SECRETS_PATH = app_path('config', 'secrets.toml')
 SECRET_SECTIONS = ('spotify', 'deezer', 'qobuz')
 
 # Saving rewrites secrets.toml without comments, the template keeps them
-SECRETS_TEMPLATE_PATH = 'config/secrets.toml.example'
+SECRETS_TEMPLATE_PATH = app_path('config', 'secrets.toml.example')
 
 def load_setting_descriptions():
     """ Reads the comment documenting each setting, keyed by section and name
@@ -94,8 +95,10 @@ class DownloadsConfig:
 
     @property
     def root_path(self):
-        """ Absolute path of the folder downloads land in """
-        return os.path.abspath(self.root_folder)
+        """ Absolute path of the folder downloads land in
+            A relative folder is relative to the app, not the working directory
+        """
+        return resolve_path(self.root_folder)
 
     def export_path(self, folder: str):
         """ Path a format is exported to, grouped by the day of the download """

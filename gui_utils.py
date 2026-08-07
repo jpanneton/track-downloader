@@ -9,11 +9,12 @@ import tkinter as tk
 from tkinter import messagebox
 
 from errors import TrackDownloaderError, format_error
+from paths import app_path
 
 logger = logging.getLogger(__name__)
 
 # Window state is per machine, it doesn't belong in the shared config
-LAYOUT_PATH = Path('config/layout.json')
+LAYOUT_PATH = app_path('config', 'layout.json')
 
 # Colours for the widgets ttk doesn't style, taken from the theme itself
 # 'classic' keeps the widget defaults, which is how the window used to look
@@ -114,7 +115,7 @@ class QueueLogHandler(logging.Handler):
 def set_window_icon(window):
     """ Sets the window icon, it is missing when running from another folder """
     try:
-        window.iconbitmap("icon.ico")
+        window.iconbitmap(app_path("icon.ico"))
     except tk.TclError:
         logger.debug("Could not load icon.ico", exc_info=True)
 
