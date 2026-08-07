@@ -114,6 +114,13 @@ def apply_dpi_scaling(window):
     window.tk.call('tk', 'scaling', scaling)
     logger.debug(f"Display reports {dpi:.0f} DPI, Tk scaling set to {scaling:.2f}")
 
+def window_dpi(window):
+    """ Pixels per inch of the display the window is on, 0 when unknown """
+    try:
+        return round(window.winfo_fpixels('1i'), 1)
+    except tk.TclError:
+        return 0.0
+
 def fit_to_screen(window, width=None, height=None):
     """ Sizes the window to fit the display it opens on
 
@@ -148,6 +155,17 @@ def restore_window_layout(window):
 
     width, height, x, y = int(match[1]), int(match[2]), int(match[3]), int(match[4])
 
+    # A size in pixels only means the same window at the same DPI, rescale it
+    # when the display or its scaling changed since it was saved
+    saved_dpi = layout.get('dpi') or 0
+    current_dpi = window_dpi(window)
+
+    if saved_dpi and current_dpi and abs(current_dpi - saved_dpi) > 0.5:
+        ratio = min(max(current_dpi / saved_dpi, 0.25), 4.0)
+        logger.debug(f"Display went from {saved_dpi} to {current_dpi} DPI, scaling the window by {ratio:.2f}")
+        width, height = round(width * ratio), round(height * ratio)
+        x, y = round(x * ratio), round(y * ratio)
+
     # The saved size can come from a larger monitor than the one in use now
     width, height = fit_to_screen(window, width, height)
 
@@ -164,10 +182,16 @@ def restore_window_layout(window):
     return True
 
 def save_window_layout(window):
-    """ Remembers the size and position of the window """
+    """ Remembers the size and position of the window
+        The DPI is saved with it, the same pixel size is a different window on
+        a display that scales differently
+    """
     try:
         LAYOUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-        LAYOUT_PATH.write_text(json.dumps({'geometry': window.geometry()}), encoding='utf-8')
+        LAYOUT_PATH.write_text(
+            json.dumps({'geometry': window.geometry(), 'dpi': window_dpi(window)}),
+            encoding='utf-8'
+        )
     except OSError as e:
         logger.debug(f"Could not save the window layout: {e}")
 
