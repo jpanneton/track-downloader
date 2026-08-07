@@ -14,6 +14,62 @@ logger = logging.getLogger(__name__)
 
 CONFIG_PATH = app_path('config', 'config.toml')
 
+# The templates are the reference, the files next to them hold the values
+CONFIG_TEMPLATE_PATH = app_path('config', 'config.toml.example')
+
+def sync_with_template(target_path: Path, template_path: Path):
+    """ Creates a config file from its template, or brings it in line with it
+
+        Settings the user changed are kept, ones added to or removed from the
+        template are applied so the file never drifts from what the app expects
+    """
+    try:
+        template_text = template_path.read_text(encoding='utf-8')
+    except OSError as e:
+        logger.debug(f"No template at {template_path}: {e}")
+        return
+
+    if not target_path.exists():
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(template_text, encoding='utf-8')
+        logger.info(f"Created {target_path.name} from {template_path.name}")
+        return
+
+    try:
+        current = parse_toml(target_path.read_text(encoding='utf-8'))
+    except (OSError, ValueError) as e:
+        logger.warning(f"Could not read {target_path.name}, leaving it alone: {e}")
+        return
+
+    # Start from the template so its comments and order stay current
+    merged = parse_toml(template_text)
+
+    added, removed = [], []
+    for section_name, section in merged.items():
+        current_section = current.get(section_name)
+        for key in section:
+            if current_section is not None and key in current_section:
+                # Plain values only, tomlkit items carry the other file's layout
+                value = current_section[key]
+                merged[section_name][key] = value.unwrap() if hasattr(value, 'unwrap') else value
+            else:
+                added.append(f'{section_name}.{key}')
+
+    for section_name, section in current.items():
+        if section_name not in merged:
+            removed.append(section_name)
+        else:
+            removed.extend(f'{section_name}.{key}' for key in section if key not in merged[section_name])
+
+    if not added and not removed:
+        return
+
+    target_path.write_text(dumps_toml(merged), encoding='utf-8')
+    if added:
+        logger.info(f"Added new setting(s) to {target_path.name}: {', '.join(added)}")
+    if removed:
+        logger.info(f"Removed obsolete setting(s) from {target_path.name}: {', '.join(removed)}")
+
 def build_section(cls, section: str, values):
     """ Builds a config section, ignoring settings the app no longer knows
         A leftover setting shouldn't make the whole config unreadable
@@ -189,20 +245,27 @@ class Config:
         # Load TOML doc
         toml_path = CONFIG_PATH
         try:
+            # A config predating the split still holds the credentials, move
+            # them out first or syncing would drop what the template lacks
+            if CONFIG_PATH.exists() and not SECRETS_PATH.exists():
+                existing = CONFIG_PATH.read_text(encoding='utf-8')
+                if any(section in parse_toml(existing) for section in SECRET_SECTIONS):
+                    cls._migrate_secrets(existing)
+
+            # Create both files from their template and pick up its changes
+            sync_with_template(CONFIG_PATH, CONFIG_TEMPLATE_PATH)
+            sync_with_template(SECRETS_PATH, SECRETS_TEMPLATE_PATH)
+
             text = Path(toml_path).read_text(encoding='utf-8')
             # Unwrap to plain values, tomlkit containers can't be copied back out
             doc = parse_toml(text).unwrap()
 
-            # Credentials override the ones left in the shared config
-            secrets_path = Path(SECRETS_PATH)
-            if secrets_path.exists():
-                secrets_doc = parse_toml(secrets_path.read_text(encoding='utf-8')).unwrap()
+            # Credentials live in their own file
+            if SECRETS_PATH.exists():
+                secrets_doc = parse_toml(SECRETS_PATH.read_text(encoding='utf-8')).unwrap()
                 for section in SECRET_SECTIONS:
                     if section in secrets_doc:
                         doc[section] = secrets_doc[section]
-            elif any(section in doc for section in SECRET_SECTIONS):
-                # Config predating the split, move the credentials out of it
-                cls._migrate_secrets(text)
 
             downloads = build_section(DownloadsConfig, 'downloads', doc['downloads'])
             metadata = build_section(MetadataConfig, 'metadata', doc['metadata'])

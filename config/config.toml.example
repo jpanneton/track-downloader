@@ -12,7 +12,7 @@ backend = "qobuz"
 # Download format (false = MP3@320, true = FLAC@44.1)
 lossless = false
 # Playlist to download (must be public if Spotify)
-playlist_url = "https://open.spotify.com/playlist/1XfdfEhNGD9i5gtVpyNnlk?si=8c9b1ca8394e43e2"
+playlist_url = ""
 
 [metadata]
 # Relevant remix tokens (everything else will be removed from the title)

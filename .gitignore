@@ -1,5 +1,6 @@
-downloads/
 __pycache__/
-config/secrets.toml
+downloads/
 .cache
+config/config.toml
 config/layout.json
+config/secrets.toml
