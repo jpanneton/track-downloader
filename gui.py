@@ -18,7 +18,8 @@ from gui_utils import (
     save_window_layout,
     set_window_icon,
     show_error,
-    theme_colours
+    theme_colours,
+    window_dpi
 )
 from models import PlaylistInfo, TrackInfo, TrackStatus
 from pipeline import DownloadListener, download_playlist
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 # Layout of the track table: id, heading, width ratio, centered, editable
 COLUMNS = (
-    ('name',         "Name",          0.24, False, True),
+    ('name',         "Name",          0.23, False, True),
     ('title',        "Title",         0.14, False, True),
     ('artists',      "Artists",       0.14, False, True),
     ('album',        "Album",         0.10, False, True),
@@ -40,7 +41,7 @@ COLUMNS = (
     ('year',         "Year",          0.05, True,  True),
     ('number',       "Number",        0.05, True,  True),
     ('genre',        "Genre",         0.08, True,  True),
-    ('category',     "Category",      0.05, True,  False),
+    ('category',     "Category",      0.06, True,  False),
     ('status',       "Status",        0.05, True,  False)
 )
 
@@ -54,6 +55,10 @@ EDITABLE_COLUMNS = {
 }
 
 WINDOW_TITLE = "Track Downloader"
+
+# Width the columns are shares of, which is also how wide the window opens
+# Tk would otherwise size the table from its own default, far wider than needed
+DEFAULT_TABLE_WIDTH = 1200
 
 # Lines kept in the log panel, a long run would grow it without bound
 LOG_LINE_LIMIT = 500
@@ -277,7 +282,8 @@ def download_playlist_gui(config: Config, playlist_url: str):
     tableview = TableView(root, columns=COLUMN_IDS)
     tableview.set_readonly_columns([column_id for column_id, _, _, _, editable in COLUMNS if not editable])
 
-    total_width = tableview.winfo_reqwidth()
+    # Grows with the display so the table stays as readable on a scaled screen
+    total_width = round(DEFAULT_TABLE_WIDTH * max(window_dpi(root) / 96.0, 1.0))
     tableview.column('#0', width=0, stretch=tk.NO)
 
     for column_id, heading, ratio, centered, _ in COLUMNS:
