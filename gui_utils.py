@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 
 from pathlib import Path
 
@@ -74,20 +75,54 @@ def theme_colours():
     """ Colours of the theme in use, for widgets ttk leaves alone """
     return THEME_COLOURS.get(_applied_theme, THEME_COLOURS['classic'])
 
+def fit_to_screen(window, width=None, height=None):
+    """ Sizes the window to fit the display it opens on
+
+        A window larger than the screen has its bottom cut off by the window
+        manager, which is where the download buttons live
+    """
+    window.update_idletasks()
+
+    available_width = int(window.winfo_screenwidth() * 0.9)
+    available_height = int(window.winfo_screenheight() * 0.9)
+
+    width = min(width or window.winfo_reqwidth(), available_width)
+    height = min(height or window.winfo_reqheight(), available_height)
+
+    window.geometry(f"{width}x{height}")
+    return width, height
+
 def restore_window_layout(window):
-    """ Restores the size and position the window was last closed with """
+    """ Restores the size and position the window was last closed with
+        Returns whether a usable layout was applied
+    """
     try:
         layout = json.loads(LAYOUT_PATH.read_text(encoding='utf-8'))
         geometry = layout.get('geometry')
     except (OSError, ValueError):
-        return
+        return False
 
-    # A saved position can be off screen after a monitor change
-    if geometry and window.winfo_screenwidth() > 0:
-        try:
-            window.geometry(geometry)
-        except tk.TclError:
-            logger.debug(f"Ignoring invalid saved geometry {geometry!r}")
+    match = re.fullmatch(r'(\d+)x(\d+)([+-]\d+)([+-]\d+)', str(geometry or ''))
+    if not match:
+        logger.debug(f"Ignoring unusable saved geometry {geometry!r}")
+        return False
+
+    width, height, x, y = int(match[1]), int(match[2]), int(match[3]), int(match[4])
+
+    # The saved size can come from a larger monitor than the one in use now
+    width, height = fit_to_screen(window, width, height)
+
+    # Keep the window on screen, a saved position can point at a gone display
+    x = max(0, min(x, window.winfo_screenwidth() - width))
+    y = max(0, min(y, window.winfo_screenheight() - height))
+
+    try:
+        window.geometry(f"{width}x{height}+{x}+{y}")
+    except tk.TclError:
+        logger.debug(f"Ignoring invalid saved geometry {geometry!r}")
+        return False
+
+    return True
 
 def save_window_layout(window):
     """ Remembers the size and position of the window """

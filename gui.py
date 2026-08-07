@@ -10,6 +10,7 @@ from config_editor import ConfigEditor
 from gui_utils import (
     QueueLogHandler,
     apply_theme,
+    fit_to_screen,
     report_errors,
     restore_window_layout,
     save_window_layout,
@@ -237,7 +238,7 @@ def download_playlist_gui(config: Config, playlist_url: str):
     theme = apply_theme(config.interface.theme)
     colours = theme_colours()
 
-    restore_window_layout(root)
+    restored_layout = restore_window_layout(root)
 
     # ========== Toolbar ==========
     # The playlist URL is the starting point, the rest are utilities
@@ -307,7 +308,6 @@ def download_playlist_gui(config: Config, playlist_url: str):
         tableview.tag_configure(status, background=colour,
                                 foreground=STATUS_TEXT_COLOURS[theme])
 
-    tableview.pack(expand=True, fill=tk.BOTH, padx=10)
 
     # Sitting in front of an empty grid, there is nothing saying what to do
     empty_hint = ttk.Label(
@@ -329,7 +329,6 @@ def download_playlist_gui(config: Config, playlist_url: str):
     # ========== Selected Tracks ==========
     # Everything acting on the selection lives together
     selection_frame = ttk.LabelFrame(root, text="Selected tracks", padding=(8, 4, 8, 8))
-    selection_frame.pack(fill=tk.X, padx=10, pady=(8, 0))
 
     select_row = ttk.Frame(selection_frame)
     select_row.pack(fill=tk.X)
@@ -411,7 +410,8 @@ def download_playlist_gui(config: Config, playlist_url: str):
         if visible:
             # Keep the panel between the table and the buttons, packing it
             # without a reference would drop it below them
-            log_frame.pack(fill=tk.BOTH, padx=10, pady=(5, 0), before=download_buttons_frame)
+            log_frame.pack(side=tk.BOTTOM, fill=tk.BOTH, padx=10, pady=(5, 0),
+                           before=selection_frame)
         else:
             log_frame.pack_forget()
 
@@ -738,7 +738,15 @@ def download_playlist_gui(config: Config, playlist_url: str):
 
     progress_bar = ttk.Progressbar(download_buttons_frame, mode='determinate', length=140)
 
-    download_buttons_frame.pack(fill=tk.X, padx=10, pady=10)
+    # Anchored to the bottom and packed before the table, so a window too
+    # small for its content shrinks the table instead of hiding these buttons
+    download_buttons_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=10)
+
+    # Packed after the action bar so it sits above it, the log slots in between
+    selection_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(8, 0))
+
+    # Packed last, it is what absorbs whatever space is left
+    tableview.pack(side=tk.TOP, expand=True, fill=tk.BOTH, padx=10)
 
     # Ctrl+A selects every track
     tableview.bind('<Control-a>', on_select_all)
@@ -776,6 +784,22 @@ def download_playlist_gui(config: Config, playlist_url: str):
         root.destroy()
 
     root.protocol("WM_DELETE_WINDOW", on_close)
+
+    # The window may never be shorter than the fixed parts need, otherwise the
+    # bottom of it is cut off and the download buttons go with it
+    root.update_idletasks()
+    chrome_height = sum(
+        widget.winfo_reqheight() for widget in root.pack_slaves() if widget is not tableview
+    )
+    root.minsize(
+        min(700, int(root.winfo_screenwidth() * 0.9)),
+        min(chrome_height + 80, int(root.winfo_screenheight() * 0.9))
+    )
+
+    # Without a saved layout the window opens at whatever the widgets ask for,
+    # which can be taller than the screen on a scaled or small display
+    if not restored_layout:
+        fit_to_screen(root)
 
     # Start pumping worker events, then the main loop
     pump_job['id'] = root.after(100, pump_events)
