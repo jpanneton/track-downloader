@@ -25,6 +25,10 @@ class TrackInfo:
     artwork_url: str = ''
     download_url: str = ''
     category: str = ''
+    # Recording identifier, the only precise way to match a track on a backend
+    isrc: str = ''
+    # Where the track was listed, a backend may be able to use it directly
+    source_url: str = ''
 
 class PlaylistInfo:
     """ Track info collection """

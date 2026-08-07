@@ -53,12 +53,40 @@ class QobuzBackend(DownloadBackend):
         except Exception as e:
             raise BackendError(f"Could not connect to Qobuz: {format_error(e)}")
 
-    def download_query(self, query: str):
+    def find_track_id(self, track_info):
+        """ Finds the Qobuz track id of a recording from its ISRC
+            Qobuz reports the ISRC of its results, so the match can be checked
+            instead of trusting whichever track the search ranked first
+        """
+        if not track_info.isrc:
+            return None
+
         try:
+            results = self.qobuz.client.search_tracks(track_info.isrc, 10)['tracks']['items']
+        except Exception as e:
+            logger.warning(f"Qobuz search by ISRC failed: {format_error(e)}")
+            return None
+
+        for item in results:
+            if item.get('isrc') == track_info.isrc:
+                return item['id']
+
+        logger.warning(f"No Qobuz track with ISRC {track_info.isrc}, falling back to the name")
+        return None
+
+    def download_track(self, track_info):
+        track_id = self.find_track_id(track_info)
+
+        try:
+            if track_id:
+                self.qobuz.download_from_id(str(track_id), album=False)
+                return
+
+            # Nothing identifies the track, its name is all there is
+            query = self.search_query(track_info)
+
             # Returns None when the query is too short or the type is invalid
-            found = self.qobuz.lucky_mode(query)
+            if not self.qobuz.lucky_mode(query):
+                logger.warning(f"Track not found in Qobuz using '{query}'")
         except Exception as e:
             raise BackendError(f"Qobuz download failed: {format_error(e)}")
-
-        if not found:
-            logger.warning(f"Track not found in Qobuz using '{query}'")

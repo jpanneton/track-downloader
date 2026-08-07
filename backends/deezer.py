@@ -26,19 +26,40 @@ class DeezerBackend(DownloadBackend):
             client_secret=self.config.spotify.client_secret
         )
 
-    def download_query(self, query: str):
-        # Deezer is reached through a Spotify track URL
+    def find_track_url(self, track_info):
+        """ Finds the Spotify track to hand over to Deezer """
+        # The playlist already identified the track, searching again for it
+        # would only risk landing on a different recording
+        if track_info.source_url and 'spotify' in track_info.source_url:
+            return track_info.source_url
+
+        # An ISRC identifies the exact recording, a name does not
+        if track_info.isrc:
+            results = self.search(f'isrc:{track_info.isrc}')
+            if results:
+                return results[0]['external_urls']['spotify']
+            logger.warning(f"No Spotify track with ISRC {track_info.isrc}, falling back to the name")
+
+        query = self.search_query(track_info)
+        results = self.search(query)
+        if not results:
+            logger.warning(f"Track not found in Spotify using '{query}'")
+            return None
+
+        # Use first result (best match)
+        return results[0]['external_urls']['spotify']
+
+    def search(self, query: str):
         try:
-            results = self.spotify.search(q=query, type='track', limit=1)['tracks']['items']
+            return self.spotify.search(q=query, type='track', limit=1)['tracks']['items']
         except Exception as e:
             raise BackendError(f"Spotify search failed: {format_error(e)}")
 
-        if not results:
-            logger.warning(f"Track not found in Spotify using '{query}'")
+    def download_track(self, track_info):
+        # Deezer is reached through a Spotify track URL
+        track_url = self.find_track_url(track_info)
+        if not track_url:
             return
-
-        # Use first result (best match)
-        track_url = results[0]['external_urls']['spotify']
 
         self.deemix.download(
             urls=[track_url],

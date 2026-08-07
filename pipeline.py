@@ -100,9 +100,8 @@ def download_buy_downloads(config: Config, track_infos: list[TrackInfo], ignored
         listener.track_status(track_info, TrackStatus.DOWNLOADING)
 
         try:
-            # Each query is downloaded on its own so the files it produced are known
-            query = f'{track_info.artists[0]} {track_info.title}'
-            filenames = backend.download(query)
+            # Each track is downloaded on its own so the files it produced are known
+            filenames = backend.download(track_info)
 
             if not filenames:
                 logger.info(f"SKIPPED: {track_info.name}")

@@ -90,6 +90,10 @@ def extract_spotify_playlist_info(config: Config, playlist_url: str):
         track_info.download_url = ''
         track_info.category = 'Buy'
 
+        # Identifiers a backend can match on instead of searching by name
+        track_info.isrc = track['track'].get('external_ids', {}).get('isrc', '')
+        track_info.source_url = track['track'].get('external_urls', {}).get('spotify', '')
+
         # Add to buy downloads
         playlist_info.buy_downloads.append(track_info)
 

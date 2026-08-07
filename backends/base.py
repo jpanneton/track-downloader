@@ -30,19 +30,26 @@ class DownloadBackend(ABC):
         """
 
     @abstractmethod
-    def download_query(self, query: str):
-        """ Downloads the best match for a query in the downloads folder """
+    def download_track(self, track_info):
+        """ Downloads the best match for a track in the downloads folder
+            The whole track is passed so a backend can match on an identifier
+            rather than on its name, which is what causes wrong downloads
+        """
 
-    def download(self, query: str):
-        """ Downloads a query and returns the audio files it produced
+    def search_query(self, track_info):
+        """ Name query to fall back on when no identifier is usable """
+        return f'{track_info.artists[0]} {track_info.title}' if track_info.artists else track_info.title
+
+    def download(self, track_info):
+        """ Downloads a track and returns the audio files it produced
             The folder is compared before and after so a track is never paired
-            with a file that another query downloaded
+            with a file that another download produced
         """
         root_folder = self.config.downloads.root_path
         previous_files = set(list_audio_files(root_folder))
         previous_subfolders = set(list_subfolders(root_folder))
 
-        self.download_query(query)
+        self.download_track(track_info)
 
         # Backends may group a track in a release sub-folder, only the ones
         # created by this download are flattened
