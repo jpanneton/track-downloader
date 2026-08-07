@@ -37,7 +37,7 @@ To download Spotify playlists, [register a new app](https://developer.spotify.co
 
 ## Usage
 
-To open up the user interface (recommended), either double-click on launch.bat (Windows only) or type the following in a terminal:
+To open up the user interface (recommended), either double-click on launch.bat (Windows only) or type the following in a terminal. The app resolves its files from its own folder, so it can be started from anywhere:
 
 ```bash
 python download_tracks.py --gui
@@ -53,7 +53,7 @@ Without `--url`, the `playlist_url` set in the config is used. Note: the command
 
 ## Interface
 
-The window uses the Sun Valley theme and follows the Windows light/dark setting. `theme` in `config.toml` also accepts `light`, `dark`, or `classic` for the plain look it had before theming. It is applied when the app starts.
+`theme` in `config.toml` accepts `classic` (the default plain look), `system` to follow the Windows light/dark setting, or `light`/`dark` to force one. It is applied when the app starts.
 
 
 Each track shows its outcome in the **Status** column, with the row tinted to match:
