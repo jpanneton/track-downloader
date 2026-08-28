@@ -112,7 +112,8 @@ class EntryPopup(ttk.Entry):
         self.select_all()
         self.bind('<Return>', self.on_return)
         self.bind('<FocusOut>', self.on_return)
-        self.bind('<Control-a>', self.select_all)
+        # The virtual event is Ctrl+A on Windows and Cmd+A on macOS
+        self.bind('<<SelectAll>>', self.select_all)
         self.bind('<Escape>', lambda *ignore: self.destroy())
 
     def on_return(self, event):
@@ -762,8 +763,8 @@ def download_playlist_gui(config: Config, playlist_url: str):
     # Packed last, it is what absorbs whatever space is left
     tableview.pack(side=tk.TOP, expand=True, fill=tk.BOTH, padx=10)
 
-    # Ctrl+A selects every track
-    tableview.bind('<Control-a>', on_select_all)
+    # Selects every track, Ctrl+A on Windows and Cmd+A on macOS
+    tableview.bind('<<SelectAll>>', on_select_all)
 
     # Double-clicking the status of a rejected track opens where it was kept
     def on_status_click(row, column_id):
