@@ -11,13 +11,15 @@ Python script to download playlists from SoundCloud or Spotify.
 
 ## Installation
 
-First, ensure [Python](https://www.python.org/downloads/) (version 3.10 or greater) and [pip](https://pip.pypa.io/en/stable/installation/) are installed. Then, open a terminal in this folder and enter:
+First, ensure [Python](https://www.python.org/downloads/) (3.10 to 3.13) and [pip](https://pip.pypa.io/en/stable/installation/) are installed. Then, open a terminal in this folder and enter:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-[FFmpeg](https://ffmpeg.org/download.html) must also be on your `PATH` to convert WAV downloads to MP3.
+3.10 to 3.13 is the tested range. Installing under 3.14 fails on dependencies that don't publish a wheel for it yet, so pick an older interpreter if `pip install` cannot build one. On macOS, `python3` is not necessarily the newest version installed, so check what `python3 --version` reports first.
+
+[FFmpeg](https://ffmpeg.org/download.html) must also be on your `PATH` to convert WAV downloads to MP3. On macOS it is installed with `brew install ffmpeg`.
 
 `config/config.toml` and `config/secrets.toml` are created from the `.example` files next to them on first run, and both are ignored by git so your settings and credentials are never committed. When a setting is added to or removed from a template, your file is updated to match on the next run while keeping the values you set.
 
@@ -39,7 +41,7 @@ To download Spotify playlists, [register a new app](https://developer.spotify.co
 
 ## Usage
 
-To open up the user interface (recommended), either double-click on launch.bat (Windows only) or type the following in a terminal. The app resolves its files from its own folder, so it can be started from anywhere:
+To open up the user interface (recommended), double-click on `launch.bat` (Windows) or `launch.command` (macOS), or type the following in a terminal. The app resolves its files from its own folder, so it can be started from anywhere:
 
 ```bash
 python download_tracks.py --gui
@@ -55,7 +57,7 @@ Without `--url`, the `playlist_url` set in the config is used. Note: the command
 
 ## Interface
 
-`theme` in `config.toml` accepts `classic` (the default plain look), `system` to follow the Windows light/dark setting, or `light`/`dark` to force one. It is applied when the app starts.
+`theme` in `config.toml` accepts `classic` (the default plain look), `system` to follow the desktop light/dark setting on Windows and macOS, or `light`/`dark` to force one. It is applied when the app starts.
 
 
 Each track shows its outcome in the **Status** column, with the row tinted to match:
