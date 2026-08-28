@@ -48,11 +48,26 @@ def extract_spotify_playlist_info(config: Config, playlist_url: str):
     except SpotifyOauthError as e:
         raise ConfigurationError(f"Spotify rejected the credentials: {format_error(e)}")
     except SpotifyException as e:
-        # Spotify answers 404 for a playlist it won't show to these credentials,
-        # so a missing playlist and bad credentials look the same
+        if e.http_status == 403:
+            # Since February 2026 an app in Development Mode may only read the
+            # playlists its own developer owns. Being public no longer helps,
+            # and these credentials own nothing since no user is signed in.
+            raise PlaylistError(
+                "Spotify refused the playlist (HTTP 403). An app in Development Mode may only "
+                "read playlists owned by its developer, so a public one is refused too. "
+                "Use the credentials of an app in Extended Quota Mode."
+            )
+
+        if e.http_status == 404:
+            # Spotify answers 404 for a playlist it won't show to these
+            # credentials, so a missing one and a private one look the same
+            raise PlaylistError(
+                "No Spotify playlist at that URL (HTTP 404). "
+                "Make sure the link points at a playlist and that it is public."
+            )
+
         raise PlaylistError(
-            f"Could not read the Spotify playlist (HTTP {e.http_status}). "
-            "Make sure it is public and the Spotify credentials are valid."
+            f"Could not read the Spotify playlist (HTTP {e.http_status}): {format_error(e)}"
         )
 
     playlist_info = PlaylistInfo()
