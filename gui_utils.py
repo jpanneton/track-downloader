@@ -21,18 +21,21 @@ logger = logging.getLogger(__name__)
 LAYOUT_PATH = app_path('config', 'layout.json')
 
 # Colours for the widgets ttk doesn't style, taken from the theme itself
-# 'classic' keeps the widget defaults, which is how the window used to look
+# 'classic' is missing here, it keeps whatever the platform draws by default
 THEME_COLOURS = {
-    'classic': {'background': 'SystemWindow', 'foreground': 'SystemWindowText', 'muted': '#666666'},
-    'light':   {'background': '#fafafa', 'foreground': '#1c1c1c', 'muted': '#666666'},
-    'dark':    {'background': '#1c1c1c', 'foreground': '#fafafa', 'muted': '#9e9e9e'}
+    'light': {'background': '#fafafa', 'foreground': '#1c1c1c', 'muted': '#666666'},
+    'dark':  {'background': '#1c1c1c', 'foreground': '#fafafa', 'muted': '#9e9e9e'}
 }
 
 # What the theme setting accepts, 'system' resolves to light or dark
 THEMES = ('classic', 'system', 'light', 'dark')
 
-# Theme applied to this window, the colours above are picked from it
+# Used until a window exists to read the real defaults off, and if that fails
+FALLBACK_COLOURS = {'background': '#ffffff', 'foreground': '#000000', 'muted': '#666666'}
+
+# Theme applied to this window and the colours that came with it
 _applied_theme = 'classic'
+_applied_colours = FALLBACK_COLOURS
 
 def system_theme():
     """ Light or dark, according to the desktop setting """
@@ -67,7 +70,7 @@ def system_theme():
 def resolve_theme(preference: str):
     """ Turns the configured preference into the theme to actually apply """
     preference = (preference or 'system').strip().lower()
-    if preference in THEME_COLOURS:
+    if preference == 'classic' or preference in THEME_COLOURS:
         return preference
 
     if preference != 'system':
@@ -75,9 +78,28 @@ def resolve_theme(preference: str):
 
     return system_theme()
 
-def apply_theme(preference: str):
+def classic_colours(window):
+    """ Colours the plain widgets are drawn with when nothing is themed
+
+        Tk names them differently per platform, 'SystemWindow' only exists on
+        Windows, so read them off a real widget instead of hardcoding them
+    """
+    probe = tk.Text(window)
+    try:
+        return {
+            'background': str(probe.cget('background')),
+            'foreground': str(probe.cget('foreground')),
+            'muted': FALLBACK_COLOURS['muted']
+        }
+    except tk.TclError:
+        logger.debug("Could not read the default widget colours", exc_info=True)
+        return FALLBACK_COLOURS
+    finally:
+        probe.destroy()
+
+def apply_theme(window, preference: str):
     """ Applies the window theme and returns the one that ended up being used """
-    global _applied_theme
+    global _applied_theme, _applied_colours
 
     theme = resolve_theme(preference)
 
@@ -90,11 +112,12 @@ def apply_theme(preference: str):
             theme = 'classic'
 
     _applied_theme = theme
+    _applied_colours = THEME_COLOURS.get(theme) or classic_colours(window)
     return theme
 
 def theme_colours():
     """ Colours of the theme in use, for widgets ttk leaves alone """
-    return THEME_COLOURS.get(_applied_theme, THEME_COLOURS['classic'])
+    return _applied_colours
 
 def enable_dpi_awareness():
     """ Makes Windows report real pixels instead of stretching the window

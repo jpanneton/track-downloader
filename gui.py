@@ -246,7 +246,7 @@ def download_playlist_gui(config: Config, playlist_url: str):
     set_window_icon(root)
 
     # Applied before the widgets are built so they pick up the styling
-    theme = apply_theme(config.interface.theme)
+    theme = apply_theme(root, config.interface.theme)
     colours = theme_colours()
 
     restored_layout = restore_window_layout(root)
