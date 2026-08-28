@@ -124,6 +124,25 @@ def theme_colours():
     """ Colours of the theme in use, for widgets ttk leaves alone """
     return _applied_colours
 
+def bring_to_front(window):
+    """ Puts the window in front and hands it the keyboard
+
+        Started from a terminal rather than an app bundle, macOS leaves the
+        process inactive: the window is drawn behind whatever was in front and
+        its first click only activates it instead of reaching the widget
+    """
+    try:
+        window.lift()
+
+        # Raised above the other applications, then released right away so the
+        # window doesn't stay pinned over everything else
+        window.attributes('-topmost', True)
+        window.after_idle(window.attributes, '-topmost', False)
+
+        window.focus_force()
+    except tk.TclError:
+        logger.debug("Could not bring the window to the front", exc_info=True)
+
 def open_in_file_manager(path):
     """ Reveals a folder in the desktop's file manager """
     if sys.platform == 'win32':

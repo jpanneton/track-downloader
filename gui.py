@@ -11,6 +11,7 @@ from gui_utils import (
     QueueLogHandler,
     apply_dpi_scaling,
     apply_theme,
+    bring_to_front,
     enable_dpi_awareness,
     fit_to_screen,
     open_in_file_manager,
@@ -813,6 +814,14 @@ def download_playlist_gui(config: Config, playlist_url: str):
     # which can be taller than the screen on a scaled or small display
     if not restored_layout:
         fit_to_screen(root)
+
+    # Typing or pasting a URL is the first thing to do, so start there rather
+    # than making the user click the field to give it the keyboard
+    playlist_entry.focus_set()
+
+    # Started from a terminal, the window can open behind the one it was
+    # launched from, and on macOS without the keyboard at all
+    bring_to_front(root)
 
     # Start pumping worker events, then the main loop
     pump_job['id'] = root.after(100, pump_events)
