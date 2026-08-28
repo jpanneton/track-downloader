@@ -14,10 +14,13 @@ Python script to download playlists from SoundCloud or Spotify.
 First, ensure [Python](https://www.python.org/downloads/) (3.10 to 3.13) and [pip](https://pip.pypa.io/en/stable/installation/) are installed. Then, open a terminal in this folder and enter:
 
 ```bash
-pip install -r requirements.txt
+py -3 -m pip install -r requirements.txt    # Windows
+python3 -m pip install -r requirements.txt  # macOS and Linux
 ```
 
-3.10 to 3.13 is the tested range. Installing under 3.14 fails on dependencies that don't publish a wheel for it yet, so pick an older interpreter if `pip install` cannot build one. On macOS, `python3` is not necessarily the newest version installed, so check what `python3 --version` reports first.
+Going through `-m pip` rather than `pip` or `pip3` installs into the interpreter that will actually run the app. macOS ships no bare `pip` at all, and where several versions of Python are installed `pip3` can belong to a different one than `python3`, which silently installs the packages where the app won't find them.
+
+3.10 to 3.13 is the tested range. Installing under 3.14 fails on dependencies that don't publish a wheel for it yet, so pick an older interpreter if the install cannot build one. On macOS, `python3` is not necessarily the newest version installed, so check what `python3 --version` reports first.
 
 [FFmpeg](https://ffmpeg.org/download.html) must also be on your `PATH` to convert WAV downloads to MP3. On macOS it is installed with `brew install ffmpeg`.
 
@@ -52,13 +55,14 @@ Updating is deliberately kept out of the launch scripts. A pull that fails would
 To open up the user interface (recommended), double-click on `launch.bat` (Windows) or `launch.command` (macOS), or type the following in a terminal. The app resolves its files from its own folder, so it can be started from anywhere:
 
 ```bash
-python download_tracks.py --gui
+py -3 download_tracks.py --gui    # Windows
+python3 download_tracks.py --gui  # macOS and Linux
 ```
 
 To run the script in command line (experimental):
 
 ```bash
-python download_tracks.py --url https://...
+python3 download_tracks.py --url https://...
 ```
 
 Without `--url`, the `playlist_url` set in the config is used. Note: the command line version doesn't support metadata editing.
