@@ -2,6 +2,7 @@ import ctypes
 import json
 import logging
 import re
+import subprocess
 import sys
 
 from pathlib import Path
@@ -33,6 +34,36 @@ THEMES = ('classic', 'system', 'light', 'dark')
 # Theme applied to this window, the colours above are picked from it
 _applied_theme = 'classic'
 
+def system_theme():
+    """ Light or dark, according to the desktop setting """
+    if sys.platform == 'win32':
+        # Windows only exposes whether apps should use the light theme
+        try:
+            import winreg
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r'Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
+            )
+            with key:
+                uses_light, _ = winreg.QueryValueEx(key, 'AppsUseLightTheme')
+            return 'light' if uses_light else 'dark'
+        except Exception:
+            logger.debug("Could not read the system theme", exc_info=True)
+
+    elif sys.platform == 'darwin':
+        # macOS only sets AppleInterfaceStyle while dark mode is on, so the
+        # setting being missing is the answer rather than a failure
+        try:
+            style = subprocess.run(
+                ['defaults', 'read', '-g', 'AppleInterfaceStyle'],
+                capture_output=True, text=True, timeout=5
+            ).stdout.strip()
+            return 'dark' if style.lower() == 'dark' else 'light'
+        except (OSError, subprocess.SubprocessError):
+            logger.debug("Could not read the system theme", exc_info=True)
+
+    return 'light'
+
 def resolve_theme(preference: str):
     """ Turns the configured preference into the theme to actually apply """
     preference = (preference or 'system').strip().lower()
@@ -42,19 +73,7 @@ def resolve_theme(preference: str):
     if preference != 'system':
         logger.warning(f"Unknown theme '{preference}', following the system one")
 
-    # Windows only exposes whether apps should use the light theme
-    try:
-        import winreg
-        key = winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER,
-            r'Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
-        )
-        with key:
-            uses_light, _ = winreg.QueryValueEx(key, 'AppsUseLightTheme')
-        return 'light' if uses_light else 'dark'
-    except Exception:
-        logger.debug("Could not read the system theme", exc_info=True)
-        return 'light'
+    return system_theme()
 
 def apply_theme(preference: str):
     """ Applies the window theme and returns the one that ended up being used """
