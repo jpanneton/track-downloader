@@ -1,6 +1,7 @@
 import ctypes
 import json
 import logging
+import os
 import re
 import subprocess
 import sys
@@ -118,6 +119,15 @@ def apply_theme(window, preference: str):
 def theme_colours():
     """ Colours of the theme in use, for widgets ttk leaves alone """
     return _applied_colours
+
+def open_in_file_manager(path):
+    """ Reveals a folder in the desktop's file manager """
+    if sys.platform == 'win32':
+        os.startfile(path)
+    elif sys.platform == 'darwin':
+        subprocess.run(['open', path], check=True)
+    else:
+        subprocess.run(['xdg-open', path], check=True)
 
 def enable_dpi_awareness():
     """ Makes Windows report real pixels instead of stretching the window

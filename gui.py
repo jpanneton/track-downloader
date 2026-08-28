@@ -13,6 +13,7 @@ from gui_utils import (
     apply_theme,
     enable_dpi_awareness,
     fit_to_screen,
+    open_in_file_manager,
     report_errors,
     restore_window_layout,
     save_window_layout,
@@ -723,7 +724,7 @@ def download_playlist_gui(config: Config, playlist_url: str):
             messagebox.showinfo("Open Folder", f"Nothing downloaded there yet:\n{folder_path}")
             return
 
-        os.startfile(folder_path)
+        open_in_file_manager(folder_path)
 
     def on_open_downloads():
         # The dated folder only exists once something has been exported
