@@ -39,6 +39,14 @@ Add your `user_id` and `token`, **and** the `app_id` / `app_secret` they were is
 
 To download Spotify playlists, [register a new app](https://developer.spotify.com/documentation/web-api/concepts/apps) and add your client ID / secret in `secrets.toml`.
 
+Note that an app created after February 2026 starts in Development Mode, which may only read playlists owned by its own developer. A public playlist is refused with HTTP 403 all the same, so reading someone else's playlist needs the credentials of an app in Extended Quota Mode.
+
+## Updating
+
+Double-click on `update.bat` (Windows) or `update.command` (macOS) to pull the latest version and install whatever dependency it added. This needs [Git](https://git-scm.com/downloads) and a clone of the repository; from a downloaded ZIP, replace the folder by hand and keep your `config/config.toml` and `config/secrets.toml`.
+
+Updating is deliberately kept out of the launch scripts. A pull that fails would stop the app from starting, and one that changes `requirements.txt` would leave it looking up to date while failing to import.
+
 ## Usage
 
 To open up the user interface (recommended), double-click on `launch.bat` (Windows) or `launch.command` (macOS), or type the following in a terminal. The app resolves its files from its own folder, so it can be started from anywhere:
