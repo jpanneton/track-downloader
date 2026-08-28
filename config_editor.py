@@ -10,7 +10,13 @@ from backends import BACKENDS, create_backend
 
 from config import Config, load_setting_descriptions
 from errors import format_error
-from gui_utils import THEMES, set_window_icon, theme_colours
+from gui_utils import (
+    THEMES,
+    WHEEL_EVENTS,
+    set_window_icon,
+    theme_colours,
+    wheel_scroll_steps
+)
 
 # Width the explanation of a setting wraps at
 DESCRIPTION_WRAP = 560
@@ -154,8 +160,9 @@ class ConfigEditor:
         return generate_config_from_dict(type(self.config), self.dict)
 
     def close(self):
-        # The wheel binding is global while hovering, it must not outlive us
-        self.window.unbind_all('<MouseWheel>')
+        # The wheel bindings are global while hovering, they must not outlive us
+        for sequence in WHEEL_EVENTS:
+            self.window.unbind_all(sequence)
         self.window.destroy()
         self.window = None
         self.dict = {}
@@ -189,11 +196,19 @@ class ConfigEditor:
         canvas.bind('<Configure>', on_form_resized)
 
         def on_mouse_wheel(event):
-            canvas.yview_scroll(-event.delta // 120, 'units')
+            canvas.yview_scroll(wheel_scroll_steps(event), 'units')
+
+        def bind_wheel():
+            for sequence in WHEEL_EVENTS:
+                canvas.bind_all(sequence, on_mouse_wheel)
+
+        def unbind_wheel():
+            for sequence in WHEEL_EVENTS:
+                canvas.unbind_all(sequence)
 
         # Bound only while hovering, a global binding would outlive the window
-        canvas.bind('<Enter>', lambda *ignore: canvas.bind_all('<MouseWheel>', on_mouse_wheel))
-        canvas.bind('<Leave>', lambda *ignore: canvas.unbind_all('<MouseWheel>'))
+        canvas.bind('<Enter>', lambda *ignore: bind_wheel())
+        canvas.bind('<Leave>', lambda *ignore: unbind_wheel())
 
         scrollbar.pack(side='right', fill='y')
         canvas.pack(side='top', fill='both', expand=True)

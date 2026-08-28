@@ -34,6 +34,10 @@ THEMES = ('classic', 'system', 'light', 'dark')
 # Used until a window exists to read the real defaults off, and if that fails
 FALLBACK_COLOURS = {'background': '#ffffff', 'foreground': '#000000', 'muted': '#666666'}
 
+# Wheel events differ per platform: Windows and macOS send <MouseWheel> with a
+# delta, X11 sends a button press per notch instead
+WHEEL_EVENTS = ('<MouseWheel>', '<Button-4>', '<Button-5>')
+
 # Theme applied to this window and the colours that came with it
 _applied_theme = 'classic'
 _applied_colours = FALLBACK_COLOURS
@@ -128,6 +132,23 @@ def open_in_file_manager(path):
         subprocess.run(['open', path], check=True)
     else:
         subprocess.run(['xdg-open', path], check=True)
+
+def wheel_scroll_steps(event):
+    """ How many units a wheel event should scroll by, positive is downwards """
+    # X11 reports a notch as button 4 (up) or 5 (down), with no delta
+    if event.num == 4:
+        return -1
+    if event.num == 5:
+        return 1
+
+    # Windows reports multiples of 120, macOS reports the notches themselves
+    delta = event.delta if sys.platform == 'darwin' else event.delta / 120
+
+    # A trackpad can report less than a notch at a time, still move a line
+    steps = round(-delta)
+    if not steps and delta:
+        steps = -1 if delta > 0 else 1
+    return steps
 
 def enable_dpi_awareness():
     """ Makes Windows report real pixels instead of stretching the window
