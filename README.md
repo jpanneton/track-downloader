@@ -42,7 +42,7 @@ Add your `user_id` and `token`, **and** the `app_id` / `app_secret` they were is
 
 To download Spotify playlists, [register a new app](https://developer.spotify.com/documentation/web-api/concepts/apps) and add your client ID / secret in `secrets.toml`.
 
-Note that an app created after February 2026 starts in Development Mode, which may only read playlists owned by its own developer. A public playlist is refused with HTTP 403 all the same, so reading someone else's playlist needs the credentials of an app in Extended Quota Mode.
+Note that an app created after February 2026 starts in Development Mode, which may only read playlists owned by the account it is registered under. Being public does not help: someone else's playlist is refused with HTTP 403 all the same, and reading it needs the credentials of an app in Extended Quota Mode.
 
 ## Updating
 

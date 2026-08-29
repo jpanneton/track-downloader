@@ -51,13 +51,13 @@ def extract_spotify_playlist_info(config: Config, playlist_url: str):
         raise ConfigurationError(f"Spotify rejected the credentials: {format_error(e)}")
     except SpotifyException as e:
         if e.http_status == 403:
-            # Since February 2026 an app in Development Mode may only read the
-            # playlists its own developer owns. Being public no longer helps,
-            # and these credentials own nothing since no user is signed in.
+            # Since February 2026 an app in Development Mode only reaches the
+            # playlists of the account it is registered under, public or not
             raise PlaylistError(
                 "Spotify refused the playlist (HTTP 403). An app in Development Mode may only "
-                "read playlists owned by its developer, so a public one is refused too. "
-                "Use the credentials of an app in Extended Quota Mode."
+                "read playlists owned by the account it is registered under, so being public "
+                "does not help. Use a playlist from that account, or the credentials of an "
+                "app in Extended Quota Mode."
             )
 
         if e.http_status == 404:
