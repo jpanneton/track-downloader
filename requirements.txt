@@ -9,6 +9,6 @@ qobuz-dl-babymetaldev @ git+https://github.com/streetsamurai00mi/qz-dl@dev
 requests==2.31.0
 selenium==4.19.0
 soundcloud_lib==0.6.1
-spotipy==2.23.0
+spotipy==2.26.0
 sv_ttk==2.6.0
 tomlkit==0.12.4

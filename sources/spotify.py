@@ -41,7 +41,9 @@ def extract_spotify_playlist_info(config: Config, playlist_url: str):
     # Collect every page, a single response holds 100 tracks at most
     playlist = []
     try:
-        page = spotify.playlist_tracks(playlist_id)
+        # /playlists/{id}/tracks was removed in February 2026, an app created
+        # after that only reaches a playlist through /items
+        page = spotify.playlist_items(playlist_id)
         while page:
             playlist.extend(page['items'])
             page = spotify.next(page) if page['next'] else None
