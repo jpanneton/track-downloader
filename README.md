@@ -4,7 +4,7 @@ Python script to download playlists from SoundCloud or Spotify.
 
 - Optional graphical interface
 - SoundCloud playlist download (private and public)
-- Spotify playlist download (public only)
+- Spotify playlist download (public, or your own account's with a user login)
 - Automatic metadata generator and editor (GUI only)
 - Deezer and Qobuz download backends
 - Built-in config editor with a credential test button
@@ -42,7 +42,11 @@ Add your `user_id` and `token`, **and** the `app_id` / `app_secret` they were is
 
 To download Spotify playlists, [register a new app](https://developer.spotify.com/documentation/web-api/concepts/apps) and add your client ID / secret in `secrets.toml`.
 
-Note that an app created after February 2026 starts in Development Mode, which may only read playlists owned by the account it is registered under. Being public does not help: someone else's playlist is refused with HTTP 403 all the same, and reading it needs the credentials of an app in Extended Quota Mode.
+An app created after February 2026 starts in **Development Mode**, which may no longer read a playlist as the application itself: `/playlists/{id}/tracks` answers `403` and its replacement `/playlists/{id}/items` answers `401`. Set `user_login = true` in `secrets.toml` and the app signs in with a Spotify account instead, which reaches the playlists that account owns or collaborates on. Someone else's playlist stays out of reach whether or not it is public, and needs an app in Extended Quota Mode.
+
+For the login to work, add the `redirect_uri` from `secrets.toml` (`http://127.0.0.1:8080/callback` by default) to the **Redirect URIs** of the app in the Spotify dashboard. It has to match exactly, and Spotify rejects `localhost`, so the loopback address must be spelled out. Development Mode also requires the app owner to have Spotify Premium, and only the accounts listed under **Users and Access** may sign in, five at most.
+
+The first load opens a browser to finish the login, and the window stops responding until you do. The token is then kept in `config/spotify_token.json` and refreshed on its own, so the browser only opens once. Delete that file to sign in as someone else.
 
 ## Updating
 

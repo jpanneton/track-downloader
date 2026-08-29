@@ -1,15 +1,24 @@
 import logging
 
 from spotipy import Spotify
+from spotipy.cache_handler import CacheFileHandler
 from spotipy.exceptions import SpotifyException
-from spotipy.oauth2 import SpotifyClientCredentials, SpotifyOauthError
+from spotipy.oauth2 import SpotifyClientCredentials, SpotifyOAuth, SpotifyOauthError
 
 from config import Config, require_settings
 from errors import ConfigurationError, PlaylistError, format_error
 from models import PlaylistInfo, TrackInfo
+from paths import app_path
 from utils import extract_spotify_playlist_id, format_track_name
 
 logger = logging.getLogger(__name__)
+
+# Every playlist is private as far as the API is concerned, a public one
+# included, so reading the account's own playlists needs both of these
+USER_SCOPES = 'playlist-read-private playlist-read-collaborative'
+
+# Where the login is remembered, so the browser only opens the first time
+TOKEN_CACHE_PATH = app_path('config', 'spotify_token.json')
 
 def create_spotify_client(config: Config):
     """ Creates an authenticated Spotify client """
@@ -19,14 +28,50 @@ def create_spotify_client(config: Config):
         client_secret=config.spotify.client_secret
     )
 
+    if config.spotify.user_login:
+        return create_user_client(config)
+
     try:
-        # Server-to-server authentication (only works with public playlists)
+        # Server-to-server authentication, no user is signed in. Only an app in
+        # Extended Quota Mode may still read a playlist this way.
         return Spotify(client_credentials_manager=SpotifyClientCredentials(
             client_id=config.spotify.client_id,
             client_secret=config.spotify.client_secret
         ))
     except SpotifyOauthError as e:
         raise ConfigurationError(f"Could not authenticate with Spotify: {format_error(e)}")
+
+def create_user_client(config: Config):
+    """ Creates a client acting for a signed-in Spotify account
+
+        An app in Development Mode is no longer allowed to read a playlist as
+        itself, so the account that owns the playlists has to authorise it once
+    """
+    require_settings('Spotify', redirect_uri=config.spotify.redirect_uri)
+
+    auth = SpotifyOAuth(
+        client_id=config.spotify.client_id,
+        client_secret=config.spotify.client_secret,
+        redirect_uri=config.spotify.redirect_uri,
+        scope=USER_SCOPES,
+        cache_handler=CacheFileHandler(cache_path=str(TOKEN_CACHE_PATH)),
+        open_browser=True
+    )
+
+    try:
+        # The window has nothing to show while the browser is open, so say what
+        # is happening before it blocks. Only the first login needs it, the
+        # cached token is refreshed without asking again.
+        if not auth.cache_handler.get_cached_token():
+            logger.info("Waiting for the Spotify login to finish in the browser...")
+
+        # Sign in now rather than on the first request, so a failure is reported
+        # before a download starts and the browser never opens halfway through
+        auth.get_access_token(as_dict=False)
+    except SpotifyOauthError as e:
+        raise ConfigurationError(f"Could not sign in to Spotify: {format_error(e)}")
+
+    return Spotify(auth_manager=auth)
 
 def extract_spotify_playlist_info(config: Config, playlist_url: str):
     """ Extracts the info of tracks in a Spotify playlist """

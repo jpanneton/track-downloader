@@ -196,6 +196,8 @@ class SoundcloudConfig:
 class SpotifyConfig:
     client_id: str = ''
     client_secret: str = ''
+    user_login: bool = False
+    redirect_uri: str = 'http://127.0.0.1:8080/callback'
 
 @dataclass(slots=True)
 class DeezerConfig:

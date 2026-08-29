@@ -4,3 +4,4 @@ downloads/
 config/config.toml
 config/layout.json
 config/secrets.toml
+config/spotify_token.json
