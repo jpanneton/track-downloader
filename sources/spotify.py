@@ -50,6 +50,16 @@ def extract_spotify_playlist_info(config: Config, playlist_url: str):
     except SpotifyOauthError as e:
         raise ConfigurationError(f"Spotify rejected the credentials: {format_error(e)}")
     except SpotifyException as e:
+        if e.http_status == 401:
+            # /items is scoped to a signed-in user, and these credentials
+            # authenticate the app itself. Extended Quota Mode is exempt from
+            # that, Development Mode is not, so the same call works elsewhere.
+            raise PlaylistError(
+                "Spotify wants a signed-in user for this playlist (HTTP 401). The app "
+                "authenticates as itself, which an app in Development Mode may no longer do "
+                "to read a playlist. Use the credentials of an app in Extended Quota Mode."
+            )
+
         if e.http_status == 403:
             # Since February 2026 an app in Development Mode only reaches the
             # playlists of the account it is registered under, public or not
